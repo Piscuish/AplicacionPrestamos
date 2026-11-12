@@ -1,0 +1,72 @@
+name: Compilar APK
+
+# Cada vez que subes cambios a la rama main se compila una versión nueva
+# y se publica como "Release" en GitHub. La app la detecta en
+# Configuración > Actualizaciones.
+#
+# REGLA PARA NO PERDER DATOS AL ACTUALIZAR (no cambiar):
+#   - applicationId: com.piscuish.prestamos
+#   - firma: android/app/debug.keystore
+#   - versionCode siempre mayor (usa el número de ejecución del workflow)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Copiar la app al proyecto Android
+        run: npx cap sync android
+
+      - name: Número de versión
+        id: ver
+        run: |
+          BUILD=$((${{ github.run_number }} + 100))
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "name=1.0.$BUILD" >> "$GITHUB_OUTPUT"
+          sed -i -E "s/versionCode [0-9]+/versionCode $BUILD/; s/versionName \"[^\"]*\"/versionName \"1.0.$BUILD\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Renombrar APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk GestionPrestamos-${{ steps.ver.outputs.name }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GestionPrestamos-${{ steps.ver.outputs.name }}
+          path: GestionPrestamos-*.apk
+
+      - name: Publicar versión
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: Versión ${{ steps.ver.outputs.name }}
+          body: ${{ github.event.head_commit.message || 'Nueva versión' }}
+          files: GestionPrestamos-*.apk
+          make_latest: true

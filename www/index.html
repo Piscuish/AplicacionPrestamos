@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b2a5b">
+  <title>Gestión de Préstamos</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ============ 1. BIENVENIDA (primera vez) ============ -->
+  <section id="screen-welcome" class="screen hero-screen" hidden>
+    <div class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 120 90" width="150" height="112">
+            <defs>
+              <linearGradient id="swoosh" x1="0" x2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7fb2ff"/></linearGradient>
+            </defs>
+            <path d="M8 72 C40 92 92 80 112 38 C96 66 56 82 14 66 Z" fill="url(#swoosh)"/>
+            <g fill="#fff" stroke="#0b2a5b" stroke-width="2.5">
+              <ellipse cx="38" cy="60" rx="17" ry="6"/><path d="M21 52v8a17 6 0 0 0 34 0v-8"/>
+              <ellipse cx="38" cy="52" rx="17" ry="6"/><path d="M21 44v8a17 6 0 0 0 34 0v-8"/>
+              <ellipse cx="38" cy="44" rx="17" ry="6"/>
+              <ellipse cx="68" cy="46" rx="17" ry="6"/><path d="M51 38v8a17 6 0 0 0 34 0v-8"/>
+              <ellipse cx="68" cy="38" rx="17" ry="6"/><path d="M51 30v8a17 6 0 0 0 34 0v-8"/>
+              <ellipse cx="68" cy="30" rx="17" ry="6"/><path d="M51 22v8a17 6 0 0 0 34 0v-8"/>
+              <ellipse cx="68" cy="22" rx="17" ry="6"/>
+            </g>
+          </svg>
+        </div>
+        <h1 class="hero-title">Gestión de <span class="accent">Préstamos</span></h1>
+        <p class="hero-sub">Administra tus clientes, préstamos, pagos y finanzas en un solo lugar.</p>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="illus" aria-hidden="true">
+        <svg viewBox="0 0 260 140" width="230">
+          <rect x="0" y="22" width="260" height="96" rx="48" fill="#e8f0fd"/>
+          <rect x="78" y="4" width="92" height="132" rx="10" fill="#fff" stroke="#1d3d72" stroke-width="3"/>
+          <rect x="108" y="13" width="32" height="4" rx="2" fill="#1d3d72"/>
+          <g stroke-width="5" stroke-linecap="round" fill="none">
+            <path d="M92 40l6 6 10-11" stroke="#1d5bd8"/><path d="M118 41h36" stroke="#9db6dc"/>
+            <path d="M92 64l6 6 10-11" stroke="#1d5bd8"/><path d="M118 65h36" stroke="#9db6dc"/>
+            <path d="M92 88l6 6 10-11" stroke="#1d5bd8"/><path d="M118 89h22" stroke="#9db6dc"/>
+          </g>
+          <g transform="translate(176 100)">
+            <circle r="26" fill="#2d6be4" stroke="#1d3d72" stroke-width="3"/>
+            <g fill="#2d6be4" stroke="#1d3d72" stroke-width="3">
+              <rect x="-6" y="-34" width="12" height="12" rx="2"/><rect x="-6" y="22" width="12" height="12" rx="2"/>
+              <rect x="-34" y="-6" width="12" height="12" rx="2"/><rect x="22" y="-6" width="12" height="12" rx="2"/>
+            </g>
+            <circle r="22" fill="#2d6be4"/><circle r="10" fill="#fff" stroke="#1d3d72" stroke-width="3"/>
+          </g>
+        </svg>
+      </div>
+      <h2 class="sheet-title">Primera configuración</h2>
+      <p class="sheet-text">Parece que es la primera vez que usas la aplicación. Vamos a configurar tu empresa y cuenta de administrador.</p>
+      <button class="btn btn-primary" data-go="setup">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        Configurar ahora
+      </button>
+      <button class="btn btn-soft" id="btn-have-account">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+        Ya tengo una cuenta
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ 2. CONFIGURAR EMPRESA (asistente) ============ -->
+  <section id="screen-setup" class="screen light-screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="setup-back" aria-label="Atrás">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+      </button>
+      <div class="topbar-text">
+        <h1>Configurar empresa</h1>
+        <p>Datos iniciales del sistema</p>
+      </div>
+    </header>
+
+    <ol class="stepper" id="stepper">
+      <li class="active"><span class="dot"></span>Empresa</li>
+      <li><span class="dot"></span>Usuario</li>
+      <li><span class="dot"></span>Finalizar</li>
+    </ol>
+
+    <form id="setup-form" class="setup-body" novalidate autocomplete="off">
+      <!-- Paso 1: Empresa -->
+      <div class="step" data-step="0">
+        <div class="card">
+          <p class="card-label">Logo de la empresa <span class="muted">(opcional)</span></p>
+          <div class="logo-row">
+            <button type="button" class="logo-drop" id="logo-preview" aria-label="Seleccionar logo">
+              <svg class="ico ico-lg" viewBox="0 0 24 24"><rect x="3" y="4" width="16" height="14" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m19 15-4-4-8 7"/></svg>
+            </button>
+            <div class="logo-info">
+              <p>Sube el logo de tu empresa<br>(PNG, JPG o WEBP)<br><strong>Máx. 2 MB</strong></p>
+              <button type="button" class="btn-chip" id="logo-pick">
+                <svg class="ico" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+                Seleccionar imagen
+              </button>
+              <button type="button" class="link-btn" id="logo-remove" hidden>Quitar logo</button>
+            </div>
+          </div>
+          <input type="file" id="logo-input" accept="image/png,image/jpeg,image/webp" hidden>
+        </div>
+
+        <label class="field-label" for="company">Nombre de la empresa <span class="req">*</span></label>
+        <div class="field">
+          <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="3" width="11" height="18" rx="1"/><path d="M15 9h4a1 1 0 0 1 1 1v11h-5"/><path d="M8 7h3M8 11h3M8 15h3"/></svg>
+          <input id="company" name="company" type="text" maxlength="40" placeholder="Ej: Préstamos El Puente">
+        </div>
+        <p class="error" data-error="company"></p>
+      </div>
+
+      <!-- Paso 2: Usuario -->
+      <div class="step" data-step="1" hidden>
+        <h2 class="section-title">Cuenta de administrador</h2>
+        <div class="field field-float">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          <label><span>Usuario</span><input id="username" type="text" maxlength="30" autocapitalize="none" spellcheck="false" placeholder="admin"></label>
+        </div>
+        <p class="error" data-error="username"></p>
+
+        <div class="field field-float">
+          <svg class="ico" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <label><span>Contraseña</span><input id="password" type="password" maxlength="64" placeholder="Mínimo 6 caracteres"></label>
+          <button type="button" class="eye" data-eye="password" aria-label="Mostrar contraseña"></button>
+        </div>
+        <p class="error" data-error="password"></p>
+
+        <label class="field-label" for="password2">Confirmar contraseña</label>
+        <div class="field">
+          <svg class="ico" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <input id="password2" type="password" maxlength="64" placeholder="Repite la contraseña">
+          <button type="button" class="eye" data-eye="password2" aria-label="Mostrar contraseña"></button>
+        </div>
+        <p class="error" data-error="password2"></p>
+      </div>
+
+      <!-- Paso 3: Finalizar -->
+      <div class="step" data-step="2" hidden>
+        <div class="summary card">
+          <div class="summary-logo" id="sum-logo"></div>
+          <h2 id="sum-company"></h2>
+          <p class="muted">Gestión de Préstamos</p>
+          <dl>
+            <div><dt>Administrador</dt><dd id="sum-user"></dd></div>
+            <div><dt>Contraseña</dt><dd>••••••••</dd></div>
+          </dl>
+        </div>
+        <p class="note">Guarda bien tu usuario y contraseña. Los datos quedan guardados solo en este teléfono.</p>
+      </div>
+
+      <div class="setup-actions">
+        <button type="submit" class="btn btn-primary" id="setup-next">Continuar
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============ 3. INICIAR SESIÓN ============ -->
+  <section id="screen-login" class="screen hero-screen" hidden>
+    <div class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="company-logo" id="login-logo"></div>
+        <h1 class="hero-title" id="login-company"></h1>
+        <p class="hero-sub">Gestión de Préstamos</p>
+      </div>
+    </div>
+    <form class="sheet" id="login-form" novalidate autocomplete="off">
+      <h2 class="sheet-title">Iniciar sesión</h2>
+      <p class="sheet-text tight">Accede a tu cuenta</p>
+
+      <div class="field field-float">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <label><span>Usuario</span><input id="login-user" type="text" autocapitalize="none" spellcheck="false"></label>
+      </div>
+      <div class="field field-float">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <label><span>Contraseña</span><input id="login-pass" type="password"></label>
+        <button type="button" class="eye" data-eye="login-pass" aria-label="Mostrar contraseña"></button>
+      </div>
+      <p class="error center" id="login-error"></p>
+
+      <button type="submit" class="btn btn-primary">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+        Iniciar sesión
+      </button>
+      <button type="button" class="link-btn" id="btn-forgot">¿Olvidaste tu contraseña?</button>
+    </form>
+  </section>
+
+  <!-- ============ 4. APP PRINCIPAL ============ -->
+  <section id="screen-app" class="screen app-screen" hidden>
+    <div id="view"></div>
+    <nav class="tabbar" id="tabbar">
+      <button class="tab" data-tab="inicio"></button>
+      <button class="tab" data-tab="clientes"></button>
+      <div class="fab-wrap"><button class="fab" id="fab" aria-label="Acciones rápidas"></button></div>
+      <button class="tab" data-tab="prestamos"></button>
+      <button class="tab" data-tab="calendario"></button>
+    </nav>
+  </section>
+  <div id="layer"></div>
+
+  <!-- Diálogo -->
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <h3 id="modal-title"></h3>
+      <p id="modal-text"></p>
+      <div class="form" id="modal-actions"><button class="btn btn-primary" id="modal-ok">Entendido</button></div>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="js/core.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
