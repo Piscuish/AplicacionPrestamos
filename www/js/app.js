@@ -244,8 +244,11 @@
     });
   }
 
-  // ---------- Inicio ----------
-  const config = store.get();
-  if (config && config.passwordHash) openLogin(config);
-  else show("welcome");
+  // ---------- Inicio (primero se verifican/recuperan los datos) ----------
+  const start = () => {
+    const config = store.get();
+    if (config && config.passwordHash) openLogin(config);
+    else show("welcome");
+  };
+  Promise.race([window.GP.ready(), new Promise((r) => setTimeout(r, 2500))]).then(start, start);
 })();

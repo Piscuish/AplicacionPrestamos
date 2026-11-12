@@ -1015,7 +1015,8 @@
           <p class="hint" style="margin:0">Tus datos se guardan solo en este teléfono. Guarda una copia de vez en cuando (por ejemplo, envíatela por WhatsApp o a tu correo) para no perder nada si cambias o pierdes el celular.</p>
           <button class="btn btn-primary" id="aj-export">${ic("share")}Guardar copia</button>
           <button class="btn btn-soft" id="aj-import">${ic("upload")}Restaurar una copia</button>
-          <input type="file" id="aj-ifile" accept="application/json,.json" hidden></div>
+          <input type="file" id="aj-ifile" accept="application/json,.json" hidden>
+          <button class="btn btn-soft" id="aj-auto">${ic("clock")}Copias automáticas (${G.snapshots().length})</button></div>
         <p class="note">Gestión de Préstamos · versión ${esc(Update.current.version)}</p>
       </main>`,
       bind(v) {
@@ -1095,6 +1096,18 @@
             if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
             const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click(); toast("Copia descargada");
           } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo guardar la copia."); }
+        };
+        $("#aj-auto", v).onclick = () => {
+          const list = G.snapshots();
+          sheet("Copias automáticas", `<p class="hint" style="margin:0 0 10px">La app guarda sola una copia cada día y antes de cada actualización. Restaurar una copia reemplaza los datos actuales (antes se guarda una copia de lo actual).</p>
+            ${list.length ? `<div class="list">${list.map((x, i) => `<button class="item" data-snap="${i}"><span class="mov-ico c-blue">${ic("clock")}</span><div class="grow"><div class="name" style="font-size:15px">${G.fmtDate(x.at.slice(0, 10))} · ${x.at.slice(11, 16)}</div><div class="sub">${esc(x.reason)} · ${x.data.clients.length} clientes · ${x.data.loans.length} préstamos</div></div></button>`).join("")}</div>` : `<div class="empty"><p>Aún no hay copias automáticas.</p></div>`}`, (sh) => {
+            $$("[data-snap]", sh).forEach((b) => b.onclick = async () => {
+              const x = list[b.dataset.snap]; closeLayer();
+              if (await confirmBox("¿Restaurar esta copia?", `Se volverá a los datos del ${G.fmtDate(x.at.slice(0, 10))} (${x.data.clients.length} clientes, ${x.data.loans.length} préstamos).`, "Restaurar", true)) {
+                G.restoreSnapshot(Number(b.dataset.snap)); toast("Copia restaurada"); root("inicio");
+              }
+            });
+          });
         };
         $("#aj-import", v).onclick = () => $("#aj-ifile", v).click();
         $("#aj-ifile", v).onchange = async (e) => {

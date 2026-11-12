@@ -42,6 +42,13 @@ Para que siempre sea así:
 4. **Nunca desinstales** la app para instalar una versión nueva. Desinstalar sí borra los datos.
 5. Antes de actualizar, guarda una copia en **Configuración → Copia de seguridad**.
 
+### Protecciones automáticas dentro del código (`www/js/core.js`)
+- **Espejo en archivo:** cada vez que se guarda algo, también se escribe en un archivo interno (`gp-data.json`). Si el almacenamiento de la app se perdiera, al abrirla se restaura sola desde ese archivo.
+- **Copia antes de cada actualización:** la app detecta que cambió de versión y guarda una copia automática antes de cualquier otra cosa. Además guarda una copia diaria, hasta 5 en total, que se pueden ver en *Configuración → Copias automáticas*.
+- **Datos dañados no se borran:** si un dato no se puede leer, se aparta y se recupera desde la última copia.
+- **Migraciones solo agregan:** si una versión futura cambia el formato de los datos, se hace con una función en `MIGRATIONS` que agrega campos y nunca borra clientes, préstamos ni pagos.
+- **Respaldo de Android activado** (`allowBackup`): Android puede guardar los datos de la app en la cuenta de Google del teléfono.
+
 ## Estructura
 - `www/` contiene la app. Los cambios se hacen aquí:
   - `index.html` tiene las pantallas.

@@ -52,20 +52,126 @@
     settings: { mora: { enabled: false, type: "percent", value: 5, graceDays: 0, since: null } },
     seq: { loan: 0 },
   });
+  /* =====================================================================
+     PROTECCIÓN DE DATOS (PRIORIDAD MÁXIMA)
+     1. Los datos viven en el almacenamiento interno de la app, que Android
+        CONSERVA al instalar una actualización (misma firma + mismo id).
+     2. Cada vez que se guarda, se escribe además una copia espejo en un
+        archivo interno (gp-data.json). Si el almacenamiento web se perdiera,
+        la app se restaura sola desde ese archivo al abrir.
+     3. Al detectar una versión nueva de la app se hace una copia automática
+        antes de tocar nada, y se guardan las últimas copias diarias.
+     4. Los cambios de formato se hacen SOLO con migraciones que agregan
+        campos; nunca se borran clientes, préstamos ni pagos.
+     5. Si un archivo de datos está dañado, NO se sobrescribe: se aparta
+        y se intenta recuperar desde el espejo o las copias.
+     ===================================================================== */
+  const SCHEMA = 1;
+  const MIGRATIONS = {
+    // Ejemplo para versiones futuras (solo agregar, nunca borrar):
+    // 2: (d) => { d.clients.forEach((c) => { if (c.tags == null) c.tags = []; }); },
+  };
+  function normalize(d) {
+    const e = EMPTY();
+    const out = Object.assign(e, d, { settings: Object.assign(e.settings, d.settings || {}) });
+    out.settings.mora = Object.assign(EMPTY().settings.mora, (d.settings || {}).mora || {});
+    ["clients", "loans", "payments", "movements"].forEach((k) => { if (!Array.isArray(out[k])) out[k] = []; });
+    out.seq = Object.assign({ loan: 0 }, d.seq || {});
+    let v = Number(out.schema) || 1;
+    while (v < SCHEMA) { v++; if (MIGRATIONS[v]) MIGRATIONS[v](out); }
+    out.schema = SCHEMA;
+    return out;
+  }
   let data = load();
   function load() {
+    const raw = localStorage.getItem(DATA_KEY);
+    if (!raw) return EMPTY();
     try {
-      const d = JSON.parse(localStorage.getItem(DATA_KEY));
-      if (d && d.clients) { const e = EMPTY(); return Object.assign(e, d, { settings: Object.assign(e.settings, d.settings || {}) }); }
-    } catch (e) { /* datos dañados: se empieza vacío */ }
+      const d = JSON.parse(raw);
+      if (d && d.clients) return normalize(d);
+    } catch (e) { /* dañado */ }
+    // Nunca sobrescribir datos que no se pudieron leer: se apartan.
+    try { localStorage.setItem("gp.data.damaged." + Date.now(), raw); } catch (e) { /* lleno */ }
+    const b = latestSnapshot();
+    if (b) { try { return normalize(JSON.parse(b).data); } catch (e) { /* sigue */ } }
     return EMPTY();
   }
-  function save() { localStorage.setItem(DATA_KEY, JSON.stringify(data)); cache = null; }
+  function isEmpty(d) { return !d.clients.length && !d.loans.length && !d.payments.length && !d.movements.length; }
+  function save() {
+    data.schema = SCHEMA;
+    localStorage.setItem(DATA_KEY, JSON.stringify(data)); cache = null;
+    mirrorSoon();
+  }
+
+  // ----- Espejo en archivo interno de la app (solo en el teléfono) -----
+  const MIRROR_FILE = "gp-data.json";
+  const FS = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Filesystem; };
+  let mirrorT = null;
+  function mirrorSoon() { clearTimeout(mirrorT); mirrorT = setTimeout(mirrorNow, 600); }
+  async function mirrorNow() {
+    const F = FS(); if (!F) return;
+    const cfg = Config.get();
+    if (!cfg && isEmpty(data)) return; // no pisar un espejo bueno con nada
+    try {
+      await F.writeFile({ path: MIRROR_FILE, directory: "DATA", encoding: "utf8",
+        data: JSON.stringify({ app: "GestionPrestamos", savedAt: new Date().toISOString(), config: cfg, data }) });
+    } catch (e) { /* se reintenta en el próximo guardado */ }
+  }
+  async function readMirror() {
+    const F = FS(); if (!F) return null;
+    try { const r = await F.readFile({ path: MIRROR_FILE, directory: "DATA", encoding: "utf8" }); return JSON.parse(r.data); }
+    catch (e) { return null; }
+  }
+
+  // ----- Copias automáticas (en el almacenamiento de la app) -----
+  function SNAP_KEY_() { return "gp.backup.auto"; }
+  function snapshots() { try { return JSON.parse(localStorage.getItem(SNAP_KEY_())) || []; } catch (e) { return []; } }
+  function latestSnapshot() { const s = snapshots(); return s.length ? JSON.stringify(s[0]) : null; }
+  function snapshot(reason) {
+    if (isEmpty(data)) return;
+    const list = snapshots();
+    const item = { at: new Date().toISOString(), reason, data: JSON.parse(JSON.stringify(data)) };
+    // una por día + todas las de actualización, máximo 5
+    const day = item.at.slice(0, 10);
+    const filtered = list.filter((x) => !(x.reason === "diaria" && reason === "diaria" && x.at.slice(0, 10) === day));
+    filtered.unshift(item);
+    for (let n = 5; n > 1; n--) {
+      try { localStorage.setItem(SNAP_KEY_(), JSON.stringify(filtered.slice(0, n))); return; } catch (e) { /* sin espacio: guardar menos */ }
+    }
+  }
+
+  /* Se llama al abrir la app (antes del login). Recupera datos si hiciera falta
+     y hace la copia automática cuando cambia la versión instalada. */
+  async function ready() {
+    try {
+      const mirror = await readMirror();
+      const hasCfg = !!localStorage.getItem(CONFIG_KEY);
+      if (mirror && mirror.data) {
+        const mData = normalize(mirror.data);
+        const mCount = mData.clients.length + mData.loans.length + mData.payments.length;
+        const lCount = data.clients.length + data.loans.length + data.payments.length;
+        if (!hasCfg && mirror.config) localStorage.setItem(CONFIG_KEY, JSON.stringify(mirror.config));
+        if (isEmpty(data) && !isEmpty(mData)) { data = mData; localStorage.setItem(DATA_KEY, JSON.stringify(data)); cache = null; }
+        else if (mCount > lCount && lCount === 0) { data = mData; save(); }
+      } else if (!isEmpty(data) || hasCfg) {
+        mirrorNow(); // primera vez con esta protección: crear el espejo
+      }
+    } catch (e) { /* nunca bloquear el inicio */ }
+    try {
+      let build = "web";
+      const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (A && A.getInfo) build = String((await A.getInfo()).build);
+      const last = localStorage.getItem("gp.lastBuild");
+      if (last && last !== build) snapshot("actualización " + last + " → " + build);
+      else snapshot("diaria");
+      localStorage.setItem("gp.lastBuild", build);
+    } catch (e) { /* ignorar */ }
+  }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   const Config = {
     get() { try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; } },
-    set(v) { localStorage.setItem(CONFIG_KEY, JSON.stringify(v)); },
+    set(v) { localStorage.setItem(CONFIG_KEY, JSON.stringify(v)); if (typeof mirrorSoon === "function") mirrorSoon(); },
   };
 
   // ================= Préstamos: cuotas =================
@@ -350,13 +456,20 @@
     importAll(json) {
       const o = JSON.parse(json);
       if (!o || o.app !== "GestionPrestamos" || !o.data || !o.data.clients) throw new Error("archivo");
-      data = Object.assign(EMPTY(), o.data); save();
+      snapshot("antes de restaurar copia");
+      data = normalize(o.data); save();
       if (o.config && o.config.passwordHash) Config.set(o.config);
     },
   };
 
+  function restoreSnapshot(i) {
+    const s = snapshots()[i]; if (!s) return false;
+    snapshot("antes de restaurar copia automática");
+    data = normalize(s.data); save(); return true;
+  }
+
   window.GP = {
-    get data() { return data; }, save, uid, Config,
+    get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot,
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,
     money, moneyShort, parseMoney,
