@@ -1132,7 +1132,13 @@
         // Actualizaciones
         const upBox = $("#up-box", v);
         const showUpdate = (r) => {
-          if (r.error) { upBox.innerHTML = `<div class="total-row" style="background:#fdecec;color:#b42a2a">${esc(r.error)}</div>`; return; }
+          if (r.error) {
+            upBox.innerHTML = `<div class="total-row" style="background:#fdecec;color:#b42a2a">${esc(r.error)}</div>
+              <button class="btn btn-soft" id="up-apk-direct" style="font-size:15.5px">${ic("download")}Actualizar mediante APK (opcional)</button>
+              <p class="hint" style="margin:0">Abre la página de la última versión en GitHub. Descarga el archivo que termina en <b>.apk</b> e instálalo encima.</p>`;
+            $("#up-apk-direct", v).onclick = () => openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
+            return;
+          }
           if (!r.release) { upBox.innerHTML = `<div class="total-row" style="background:#e5f6ec;color:#11743a">✓ Tienes la última versión.</div>`; return; }
           const rel = r.release;
           if (rel.live) {
@@ -1140,7 +1146,9 @@
               <b class="blue">Nueva versión ${esc(rel.version)}</b><div class="small muted" style="margin-top:2px">Actualización rápida: no necesita instalar APK.</div>
               ${rel.notes ? `<div class="small" style="white-space:pre-wrap;margin-top:8px">${esc(rel.notes.slice(0, 600))}</div>` : ""}</div>
               <button class="btn btn-primary" id="up-live">${ic("repeat")}Actualizar ahora</button>
-              <p class="hint" style="margin:0">La app se reinicia en unos segundos con la versión nueva. Tus datos no se tocan y antes se guarda una copia automática.</p>`;
+              <button class="btn btn-soft" id="up-apk-opt" style="font-size:15.5px">${ic("download")}Actualizar mediante APK (opcional)</button>
+              <p class="hint" style="margin:0">"Actualizar ahora" reinicia la app en unos segundos con la versión nueva, sin instalar nada. Si prefieres, también puedes descargar el APK e instalarlo encima. En ambos casos tus datos no se tocan.</p>`;
+            $("#up-apk-opt", v).onclick = () => { openExternal(rel.apkUrl || rel.page || `https://github.com/${GITHUB_REPO}/releases/latest`); };
             $("#up-live", v).onclick = async () => {
               const b = $("#up-live", v); b.disabled = true; b.lastChild.textContent = "Descargando…";
               const ok = await Update.downloadLive(rel, false);
@@ -1339,6 +1347,9 @@
         return { build: m ? +m[3] : 0, version: m ? m[0] : j.tag_name, date: String(j.published_at || "").slice(0, 10), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url, web };
       } catch (e) { return { status: lastErr === "net" ? "net" : lastErr || "net" }; }
     },
+    cleanNotes(t) {
+      return String(t || "").split(/\n/).filter((l) => !/^(Co-Authored-By|Claude-Session|Signed-off-by)/i.test(l.trim())).join("\n").trim();
+    },
     async check(manual) {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "Sin conexión a internet. Conéctate (datos o Wi‑Fi) e intenta de nuevo." };
       const r = await this.fetchLatest();
@@ -1351,7 +1362,7 @@
       }
       if (r.build > this.current.build) {
         const live = !!(r.web && this.current.canLive && this.current.nativeBuild >= r.web.minNative && localStorage.getItem("gp.live.failed") !== String(r.build));
-        this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: r.notes, apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url };
+        this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: this.cleanNotes(r.notes), apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url };
         return { release: this.available };
       }
       this.available = null; return {};
