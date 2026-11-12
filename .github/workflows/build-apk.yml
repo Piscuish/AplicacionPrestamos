@@ -94,3 +94,28 @@ jobs:
             GestionPrestamos-*.apk
             www-*.zip
           make_latest: true
+
+      # Archivo pequeño con la última versión, en la rama "updates".
+      # La app lo lee desde raw.githubusercontent.com, que no tiene el límite
+      # de consultas por hora de la API de GitHub (importante con datos móviles).
+      - name: Publicar aviso de última versión (latest.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ github.event.head_commit.message || 'Nueva versión' }}
+        run: |
+          NAME=${{ steps.ver.outputs.name }}
+          BUILD=${{ steps.ver.outputs.build }}
+          MIN=${{ steps.nat.outputs.min }}
+          BASE="https://github.com/${{ github.repository }}/releases/download/v$NAME"
+          WWW=$(ls www-*.zip | head -1)
+          APK=$(ls GestionPrestamos-*.apk | head -1)
+          jq -n --arg v "$NAME" --argjson b "$BUILD" --argjson m "$MIN" --arg apk "$BASE/$APK" --arg web "$BASE/$WWW" \
+                --argjson size "$(stat -c %s "$APK")" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%d)" \
+                --arg page "https://github.com/${{ github.repository }}/releases/tag/v$NAME" \
+                '{version:$v, build:$b, minNative:$m, apkUrl:$apk, apkSize:$size, webUrl:$web, notes:$notes, date:$date, page:$page}' > latest.json
+          cat latest.json
+          mkdir -p /tmp/upd && cp latest.json /tmp/upd/ && cd /tmp/upd
+          git init -q && git checkout -q -b updates
+          git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest.json && git commit -qm "Última versión: $NAME"
+          git push -fq "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" updates

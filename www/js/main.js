@@ -1316,27 +1316,45 @@
       $("#upd-later", layer()).onclick = () => { this.dismissed = rel.build; closeLayer(); };
       $("#upd-now", layer()).onclick = () => { closeLayer(); go("ajustes", { update: true }); };
     },
-    async check(manual) {
+    /* Consulta la última versión. Primero el archivo latest.json (sin límite de
+       consultas, funciona bien con datos móviles); si falla, la API de GitHub. */
+    async fetchLatest() {
+      let lastErr = null;
+      try {
+        const r = await fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/updates/latest.json?t=${Date.now()}`, { cache: "no-store" });
+        if (r.ok) {
+          const j = await r.json();
+          if (j && j.build) return { build: +j.build, version: j.version, date: j.date, notes: j.notes || "", apkUrl: j.apkUrl, size: j.apkSize, page: j.page, web: j.webUrl ? { url: j.webUrl, minNative: +j.minNative || 0 } : null };
+        } else lastErr = r.status;
+      } catch (e) { lastErr = "net"; }
       try {
         const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
-        localStorage.setItem("gp.update.lastCheck", String(Date.now()));
-        if (res.status === 404) return manual ? { error: "Todavía no hay versiones publicadas en GitHub." } : {};
-        if (!res.ok) return { error: "No se pudo consultar GitHub (código " + res.status + "). Intenta más tarde." };
+        if (res.status === 404) return { none: true };
+        if (!res.ok) return { status: res.status };
         const j = await res.json();
         const m = String(j.tag_name || "").match(/(\d+)\.(\d+)\.(\d+)/);
-        const build = m ? parseInt(m[3], 10) : 0;
-        const apk = (j.assets || []).find((a) => /\.apk$/i.test(a.name));
+        const apk = (j.assets || []).find((x) => /\.apk$/i.test(x.name));
         let web = null;
-        for (const a of j.assets || []) { const w = a.name.match(/^www-(\d+)-n(\d+)(?:-h[0-9a-f]+)?\.zip$/); if (w) web = { url: a.browser_download_url, minNative: +w[2] }; }
-        if (build > this.current.build) {
-          const live = !!(web && this.current.canLive && this.current.nativeBuild >= web.minNative && localStorage.getItem("gp.live.failed") !== String(build));
-          this.available = { version: m ? m[0] : j.tag_name, build, date: String(j.published_at || "").slice(0, 10) || G.today(), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url, live, webUrl: web && web.url };
-          return { release: this.available };
-        }
-        this.available = null; return {};
-      } catch (e) {
-        return { error: "Sin conexión a internet. Conéctate e intenta de nuevo." };
+        for (const x of j.assets || []) { const w = x.name.match(/^www-(\d+)-n(\d+)(?:-h[0-9a-f]+)?\.zip$/); if (w) web = { url: x.browser_download_url, minNative: +w[2] }; }
+        return { build: m ? +m[3] : 0, version: m ? m[0] : j.tag_name, date: String(j.published_at || "").slice(0, 10), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url, web };
+      } catch (e) { return { status: lastErr === "net" ? "net" : lastErr || "net" }; }
+    },
+    async check(manual) {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "Sin conexión a internet. Conéctate (datos o Wi‑Fi) e intenta de nuevo." };
+      const r = await this.fetchLatest();
+      localStorage.setItem("gp.update.lastCheck", String(Date.now()));
+      if (r.none) return manual ? { error: "Todavía no hay versiones publicadas en GitHub." } : {};
+      if (r.status) {
+        if (r.status === "net") return { error: "No se pudo conectar con GitHub. Revisa tu conexión e intenta de nuevo." };
+        if (r.status === 403 || r.status === 429) return { error: "GitHub está limitando las consultas desde tu red en este momento. Intenta de nuevo en unos minutos." };
+        return { error: "No se pudo consultar GitHub (código " + r.status + "). Intenta más tarde." };
       }
+      if (r.build > this.current.build) {
+        const live = !!(r.web && this.current.canLive && this.current.nativeBuild >= r.web.minNative && localStorage.getItem("gp.live.failed") !== String(r.build));
+        this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: r.notes, apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url };
+        return { release: this.available };
+      }
+      this.available = null; return {};
     },
   };
 
