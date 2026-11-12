@@ -850,10 +850,32 @@
           <div class="between total-row" style="margin-top:6px"><span>Total del día</span><span>${money(daySum.total)}</span></div>` : `<p class="muted" style="margin:0">No hay cobros este día.</p>`}
         </div>
         ${daySum.count ? `<button class="btn btn-primary" ${goAttr("dia", { date: sel })}>${ic("list")}Ver cobros del día</button>` : ""}
+        ${(() => {
+          const fest = (G.data.settings.noPay.dates || []).find((x) => (x.date || x) === sel);
+          const wdRule = !fest && (G.data.settings.noPay.weekdays || []).includes(G.parseISO(sel).getDay());
+          if (fest) return `<button class="btn btn-soft" id="cal-unfest">${ic("x")}Quitar festivo</button>`;
+          if (wdRule) return `<p class="hint" style="text-align:center;margin:0">Este día de la semana nunca se cobra. Puedes cambiarlo en <a class="h-link" style="padding:0" data-go="ajustes" data-p='{"sec":"nopay"}'>Configuración</a>.</p>`;
+          return `<button class="btn btn-soft" id="cal-fest">${ic("calendar")}Marcar como festivo / sin cobro</button>`;
+        })()}
       </main>`,
       bind(v) {
         const set = (o) => { Object.assign(stack[stack.length - 1].params, o); refresh(); };
         $$("[data-d]", v).forEach((b) => b.onclick = () => set({ sel: b.dataset.d, ym: b.dataset.d.slice(0, 7) }));
+        const fb = $("#cal-fest", v);
+        if (fb) fb.onclick = () => {
+          const affected = G.cuotasBetween(sel, sel).filter(({ c }) => c.status !== "pagada").length;
+          sheet("Marcar " + G.fmtDateLong(sel).replace(/ \d{4}$/, ""), `<p class="hint" style="margin:0 0 12px">Nadie paga este día. ${affected === 1 ? "La cuota de ese día se correrá al siguiente día de cobro y no contará como atraso." : affected ? `Las ${affected} cuotas de ese día se correrán al siguiente día de cobro y no contarán como atraso.` : "Si alguna cuota cae ese día, se correrá al siguiente día de cobro."}</p>
+            <div class="form"><div class="field">${ic("note")}<input id="fe-note" maxlength="40" placeholder="Motivo (opcional): ej. Festivo"></div>
+            <button class="btn btn-primary" id="fe-ok">${ic("check")}Marcar como festivo</button></div>`, (sh) => {
+            $("#fe-ok", sh).onclick = () => { G.ops.addNoPayDate(sel, $("#fe-note", sh).value.trim() || "Festivo"); closeLayer(); G.applyMora(); toast("Festivo agregado"); refresh(); };
+          });
+        };
+        const ub = $("#cal-unfest", v);
+        if (ub) ub.onclick = async () => {
+          if (await confirmBox("¿Quitar festivo?", G.fmtDateLong(sel) + " volverá a ser día de cobro y las cuotas que se habían corrido regresan a esa fecha.", "Quitar festivo")) {
+            G.ops.removeNoPayDate(sel); toast("Festivo quitado"); refresh();
+          }
+        };
         $("#cal-prev", v).onclick = () => set({ ym: G.toISO(new Date(Y, M - 2, 1)).slice(0, 7) });
         $("#cal-next", v).onclick = () => set({ ym: G.toISO(new Date(Y, M, 1)).slice(0, 7) });
       },
