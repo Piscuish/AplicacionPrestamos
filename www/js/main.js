@@ -211,7 +211,7 @@
     const cur = stack[0].name;
     const item = (n, i, l) => `<button class="${cur === n && stack.length === 1 ? "active" : ""}" data-go="${n}">${ic(i)}${l}</button>`;
     layer().innerHTML = `<div class="overlay"></div><aside class="drawer">
-      <div class="drawer-head"><div class="company-logo">${logoHtml()}</div><h3>${esc(config.company)}</h3><p>Usuario: ${esc(config.username)}</p></div>
+      <div class="drawer-head"><div class="company-logo">${logoHtml()}</div><h3>${esc(config.company)}</h3><p>Usuario: ${esc(config.username)}</p><p style="font-size:12.5px;opacity:.65;margin-top:6px">Versión ${esc(Update.current.version)}</p></div>
       <nav>${item("inicio", "home", "Inicio")}${item("clientes", "users", "Clientes")}${item("prestamos", "layers", "Préstamos")}${item("calendario", "calendar", "Calendario de cobros")}
       ${item("finanzas", "chart", "Finanzas")}${item("movimientos", "list", "Movimientos")}<hr>${item("ajustes", "settings", "Configuración")}
       <button id="dr-logout">${ic("logout")}Cerrar sesión</button></nav></aside>`;
@@ -1146,11 +1146,31 @@
         const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
         if (A && A.getInfo) { const i = await A.getInfo(); this.current = { version: i.version, build: parseInt(i.build, 10) || 0 }; }
       } catch (e) { /* navegador */ }
+      this.welcome();
       // Revisión automática: al abrir la app y al volver a ella (máximo cada 30 min)
       this.auto();
       const A2 = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
       if (A2 && A2.addListener) A2.addListener("resume", () => this.auto());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) this.auto(); });
+    },
+    welcome() {
+      try {
+        const b = String(this.current.build || "");
+        if (!b || b === "0") return;
+        const seen = localStorage.getItem("gp.seenBuild");
+        localStorage.setItem("gp.seenBuild", b);
+        const from = G.updatedFrom || (seen && seen !== b ? seen : null);
+        if (!from || from === "web") return;
+        const d = G.data;
+        layer().innerHTML = `<div class="modal"><div class="modal-card" style="text-align:center">
+          <div style="width:64px;height:64px;border-radius:50%;background:#19a04a;color:#fff;display:grid;place-items:center;margin:0 auto 12px">${ic("check")}</div>
+          <h3>¡App actualizada!</h3>
+          <p>Ahora tienes la versión <b>${esc(this.current.version)}</b>.<br><br>Tus datos están completos:<br>
+          <b>${d.clients.length}</b> clientes · <b>${d.loans.length}</b> préstamos · <b>${d.payments.filter((x) => x.amount > 0).length}</b> pagos</p>
+          <button class="btn btn-primary" id="upd-ok">Entendido</button></div></div>`;
+        $("#upd-ok", layer()).onclick = closeLayer;
+        this.dismissed = this.current.build;
+      } catch (e) { /* no bloquear */ }
     },
     lastAuto: 0,
     dismissed: null,

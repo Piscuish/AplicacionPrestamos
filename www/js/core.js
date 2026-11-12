@@ -162,7 +162,7 @@
       const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
       if (A && A.getInfo) build = String((await A.getInfo()).build);
       const last = localStorage.getItem("gp.lastBuild");
-      if (last && last !== build) snapshot("actualización " + last + " → " + build);
+      if (last && last !== build) { snapshot("actualización " + last + " → " + build); window.GP.updatedFrom = last; }
       else snapshot("diaria");
       localStorage.setItem("gp.lastBuild", build);
     } catch (e) { /* ignorar */ }
