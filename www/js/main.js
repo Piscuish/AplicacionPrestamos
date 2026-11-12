@@ -240,6 +240,14 @@
     });
   }
 
+  function noPayText() {
+    const wd = (G.data.settings.noPay.weekdays || []);
+    const names = [[1, "lunes"], [2, "martes"], [3, "miércoles"], [4, "jueves"], [5, "viernes"], [6, "sábados"], [0, "domingos"]].filter(([d]) => wd.includes(d)).map(([, n]) => n);
+    const f = (G.data.settings.noPay.dates || []).filter((x) => (x.date || x) >= G.today()).length;
+    if (!names.length && !f) return "Se cobra todos los días.";
+    return "No se cobra " + (names.length ? "los " + names.join(", ") : "") + (names.length && f ? " ni en " : "") + (f ? plural(f, "festivo", "festivos") : "") + ".";
+  }
+
   // ================= Pantallas =================
   const Screens = {};
 
@@ -465,6 +473,7 @@
         <div class="field field-float">${ic("percent")}<label><span>Porcentaje de interés <span class="req">*</span></span><input id="lf-rate" inputmode="decimal" value="${d.rate}"></label><span class="suffix">%</span></div>
         <p class="hint">El interés se cobra una sola vez sobre el monto prestado.</p>
         <div class="field field-float">${ic("repeat")}<label><span>Frecuencia de cobro <span class="req">*</span></span><select id="lf-freq">${freqOpts}</select></label>${ic("chevdown", "chev-down")}</div>
+        <p class="hint">${noPayText()} Las cuotas que caigan en esos días se corren al siguiente día de cobro. <a class="h-link" style="padding:0" data-go="ajustes" data-p='{"sec":"nopay"}'>Cambiar</a></p>
         <div class="field field-float">${ic("list")}<label><span>Plazo (número de cuotas) <span class="req">*</span></span><input id="lf-count" inputmode="numeric" value="${d.count}"></label><span class="suffix" id="lf-unit"></span></div>
         <div class="field field-float">${ic("calendar")}<label><span>Fecha de entrega del dinero</span><input id="lf-start" type="date" value="${d.start}"></label></div>
         <div class="calc" id="lf-calc"></div>
@@ -543,6 +552,9 @@
           <div class="between small" style="margin-top:8px"><span>Pagado: <b class="green">${money(st.paid)}</b></span><span>Saldo: <b class="${st.balance ? "red" : ""}">${money(st.balance)}</b></span></div></div>
         <div class="between"><h2 class="h2">Cuotas</h2>${st.status !== "finalizado" ? `<button class="btn btn-primary" style="width:auto;min-height:40px;font-size:15px;padding:0 14px" ${goAttr("pago", { loanId: l.id })}>${ic("plus")}Registrar pago</button>` : ""}</div>
         <div class="list">${st.cuotas.map(cuotaRow).join("")}</div>
+        ${(l.skipDates || []).length ? `<h2 class="h2">Días sin cobro de este cliente</h2>
+        <div class="list">${l.skipDates.map((d) => `<div class="item"><span class="mov-ico c-violet">${ic("calendar")}</span><div class="grow"><div class="name" style="font-size:15px">${G.fmtDateLong(d)}</div><div class="sub">No paga este día</div></div><button class="icon-btn" data-unskip="${d}" aria-label="Volver a cobrar">${ic("x")}</button></div>`).join("")}</div>` : ""}
+        <button class="btn btn-soft" id="lo-skipday">${ic("calendar")}Quitar un día de cobro</button>
         <h2 class="h2">Historial de pagos</h2>
         ${pays.length ? `<div class="list">${pays.map((x) => x.amount > 0
           ? `<button class="item" data-pay="${x.id}"><span class="mov-ico c-green">${ic("down")}</span><div class="grow"><div class="name" style="font-size:15px">${money(x.amount)}</div><div class="sub">${G.fmtDate(x.date)} · ${esc(x.method || "")}${x.note ? " · " + esc(x.note) : ""}</div></div>${ic("file", "chev")}</button>`
@@ -554,8 +566,18 @@
           const c = st.cuotas[b.dataset.cuota - 1];
           const opts = [];
           if (c.status !== "pagada") opts.push(`<button class="sheet-opt" ${goAttr("pago", { loanId: l.id })}><span class="t-ico c-green">${ic("dollar")}</span><div><b>Registrar pago</b><span>Falta ${money(c.remaining)} de esta cuota</span></div></button>`);
+          if (c.status !== "pagada") opts.push(`<button class="sheet-opt" id="so-skip"><span class="t-ico c-violet">${ic("calendar")}</span><div><b>No cobrar este día</b><span>La cuota se corre al siguiente día de cobro y no cuenta como atraso</span></div></button>`);
           if (c.charge) opts.push(`<button class="sheet-opt" id="so-waive"><span class="t-ico c-amber">${ic("percent")}</span><div><b>Quitar recargo</b><span>Perdonar ${money(c.charge)} de esta cuota</span></div></button>`);
           sheet(`Cuota ${c.n} · ${G.fmtDate(c.date)}`, `<div class="kv" style="margin-bottom:10px"><div class="between"><span>Valor</span><span>${money(c.base)}</span></div>${c.charge ? `<div class="between"><span>Recargo por atraso</span><span class="red">${money(c.charge)}</span></div>` : ""}<div class="between"><span>Pagado</span><span class="green">${money(c.paid)}</span></div><div class="between"><span>Falta</span><span>${money(c.remaining)}</span></div></div>${opts.join("")}`, (s) => {
+            const sk = $("#so-skip", s);
+            if (sk) sk.onclick = async () => {
+              closeLayer();
+              if (await confirmBox("¿No cobrar el " + G.fmtDate(c.date) + "?", `${esc(cl ? cl.name : "El cliente")} no tendrá que pagar ese día. La cuota ${c.n} y las siguientes se corren al próximo día de cobro.`, "Quitar día")) {
+                G.ops.skipLoanDate(l.id, c.date);
+                const nst = G.computeLoan(loanOf(l.id));
+                toast("Cuota " + c.n + " ahora es el " + G.fmtDate(nst.cuotas[c.n - 1].date)); refresh();
+              }
+            };
             const w = $("#so-waive", s);
             if (w) w.onclick = async () => { closeLayer(); if (await confirmBox("¿Quitar recargo?", `Se quitará el recargo de ${money(c.charge)} de la cuota ${c.n}.`, "Quitar recargo")) { G.ops.removeCharge(l.id, c.n); toast("Recargo quitado"); refresh(); } };
           });
@@ -570,6 +592,27 @@
             $("#so-delp", s).onclick = async () => { closeLayer(); if (await confirmBox("¿Eliminar este registro?", "El saldo del préstamo se recalculará.", "Eliminar", true)) { G.ops.deletePayment(pay.id); toast("Registro eliminado"); refresh(); } };
           });
         });
+        $$("[data-unskip]", v).forEach((b) => b.onclick = async () => {
+          if (await confirmBox("¿Volver a cobrar este día?", G.fmtDateLong(b.dataset.unskip) + " vuelve a ser día de cobro para este préstamo.", "Volver a cobrar")) { G.ops.unskipLoanDate(l.id, b.dataset.unskip); toast("Día restablecido"); refresh(); }
+        });
+        $("#lo-skipday", v).onclick = () => {
+          const def = st.next ? st.next.date : G.today();
+          sheet("Quitar un día de cobro", `<p class="hint" style="margin:0 0 12px">Elige el día que ${esc(cl ? cl.name.split(" ")[0] : "el cliente")} no va a pagar. La cuota de ese día se corre al siguiente día de cobro y no cuenta como atraso.</p>
+            <div class="form"><div class="field field-float">${ic("calendar")}<label><span>Día que no paga</span><input id="sk-date" type="date" value="${def}"></label></div>
+            <p class="hint" id="sk-info"></p><button class="btn btn-primary" id="sk-ok">${ic("check")}Quitar este día</button></div>`, (sh) => {
+            const info = () => {
+              const d = $("#sk-date", sh).value; if (!d) return;
+              const r = G.noPayReason(d, l);
+              const hit = st.cuotas.find((c) => c.date === d && c.status !== "pagada");
+              $("#sk-info", sh).innerHTML = r ? `Ese día ya es sin cobro: ${esc(r)}.` : hit ? `Ese día vence la cuota ${hit.n}; se correrá al siguiente día de cobro.` : st.loan.freq === "diaria" ? "Las cuotas desde ese día se corren un día." : "Ese día no vence ninguna cuota de este préstamo.";
+            };
+            $("#sk-date", sh).oninput = info; info();
+            $("#sk-ok", sh).onclick = () => {
+              const d = $("#sk-date", sh).value; if (!d) return;
+              closeLayer(); G.ops.skipLoanDate(l.id, d); toast("Día quitado: " + G.fmtDate(d)); refresh();
+            };
+          });
+        };
         $("#lo-more", v).onclick = () => sheet(null, `
           <button class="sheet-opt" ${goAttr("cliente", { id: l.clientId })}><span class="t-ico c-blue">${ic("user")}</span><div><b>Ver cliente</b></div></button>
           <button class="sheet-opt" id="so-dell"><span class="t-ico c-red">${ic("trash")}</span><div><b>Eliminar préstamo</b><span>También borra sus pagos</span></div></button>`, (s) => {
@@ -775,6 +818,7 @@
     const startOffset = (first.getDay() + 6) % 7; // lunes primero
     const gridStart = G.toISO(new Date(Y, M - 1, 1 - startOffset));
     const days = 42;
+    const npRules = G.noPayRules([]);
     const gridEnd = G.addDays(gridStart, days - 1);
     const items = G.cuotasBetween(gridStart, gridEnd);
     const byDay = {};
@@ -787,7 +831,8 @@
     let cells = "";
     for (let i = 0; i < days; i++) {
       const d = G.addDays(gridStart, i); const dd = G.parseISO(d);
-      cells += `<button class="cal-day ${dd.getMonth() !== M - 1 ? "out" : ""} ${d === t ? "today" : ""} ${d === sel ? "sel" : ""}" data-d="${d}">${dd.getDate()}<span class="dots">${byDay[d] ? dotsFor(byDay[d]) : ""}</span></button>`;
+      const np = G.isNoPay(d, npRules);
+      cells += `<button class="cal-day ${dd.getMonth() !== M - 1 ? "out" : ""} ${np ? "nopay" : ""} ${d === t ? "today" : ""} ${d === sel ? "sel" : ""}" data-d="${d}">${dd.getDate()}<span class="dots">${byDay[d] ? dotsFor(byDay[d]) : ""}</span></button>`;
     }
     const daySum = summarizeDay(G.cuotasBetween(sel, sel));
     void sd;
@@ -795,9 +840,10 @@
       html: appbar({ title: "Calendario de cobros", sub: "Controla los cobros de tus clientes" }) + `<main class="body">
         <div class="cal"><div class="cal-head"><button class="icon-btn" id="cal-prev" aria-label="Mes anterior">${ic("left")}</button><h3>${G.MESES_LARGO[M - 1][0].toUpperCase() + G.MESES_LARGO[M - 1].slice(1)} ${Y}</h3><button class="icon-btn" id="cal-next" aria-label="Mes siguiente">${ic("right")}</button></div>
           <div class="cal-grid">${["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => `<div class="cal-dow">${d}</div>`).join("")}${cells}</div></div>
-        <div class="legend" style="justify-content:center;flex-wrap:wrap"><span><i class="d-g"></i>Pagado</span><span><i class="d-a"></i>Parcial</span><span><i class="d-r"></i>Pendiente</span><span><i class="d-b"></i>Próximo</span></div>
+        <div class="legend" style="justify-content:center;flex-wrap:wrap"><span><i class="d-g"></i>Pagado</span><span><i class="d-a"></i>Parcial</span><span><i class="d-r"></i>Pendiente</span><span><i class="d-b"></i>Próximo</span><span><i style="background:#d9dee8"></i>Sin cobro</span></div>
         <div class="kv" style="padding:14px">
           <div class="row" style="margin-bottom:10px"><span class="t-ico c-blue" style="width:44px;height:44px;border-radius:12px;display:grid;place-items:center">${ic("calendar")}</span><div><b style="font-size:17px">${G.fmtDateLong(sel).replace(/ \d{4}$/, "")}</b><div class="small muted">${plural(daySum.count, "cobro programado", "cobros programados")}</div></div></div>
+          ${G.noPayReason(sel) ? `<p class="small" style="margin:0 0 8px;color:#6b46d6">⛔ Día sin cobro: ${esc(G.noPayReason(sel))}</p>` : ""}
           ${daySum.count ? `<div class="between" style="padding:9px 0"><span class="row" style="gap:8px">${ic("checkcircle", "green")}${daySum.paid.n} Pagados</span><b>${money(daySum.paid.v)}</b></div>
           <div class="between" style="padding:9px 0"><span class="row" style="gap:8px">${ic("clock", "amber")}${daySum.part.n} Parciales</span><b>${money(daySum.part.v)}</b></div>
           <div class="between" style="padding:9px 0"><span class="row" style="gap:8px">${ic("xcircle", "red")}${daySum.pend.n} Pendientes</span><b>${money(daySum.pend.v)}</b></div>
@@ -996,6 +1042,16 @@
           <button class="btn btn-primary" id="up-check">${ic("search")}Buscar actualizaciones</button>
           <p class="hint" style="margin:0">La app busca actualizaciones sola cada vez que la abres. Las actualizaciones normales se descargan y aplican solas, sin instalar APK; solo los cambios grandes (ícono, permisos) piden instalar APK. Al actualizar se conservan todos tus clientes, préstamos y pagos; aun así, te recomendamos guardar una copia antes.</p></div>
 
+        <div class="setting-card" id="sec-nopay"><h3>${ic("calendar")}Días sin cobro</h3>
+          <p class="hint" style="margin:0">Días en que nadie paga. Las cuotas que caigan en esos días se corren al siguiente día de cobro y no cuentan como atraso.</p>
+          <div class="chips" style="flex-wrap:wrap;margin:0;padding:0">${[[1, "Lun"], [2, "Mar"], [3, "Mié"], [4, "Jue"], [5, "Vie"], [6, "Sáb"], [0, "Dom"]].map(([d, n]) => `<button type="button" class="chip ${G.data.settings.noPay.weekdays.includes(d) ? "active" : ""}" data-wd="${d}">${n}</button>`).join("")}</div>
+          <p class="hint" style="margin:0">${noPayText()}</p>
+          <b style="font-size:15px">Festivos y días especiales</b>
+          ${(G.data.settings.noPay.dates || []).filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).length ? `<div class="list">${G.data.settings.noPay.dates.filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).map((x) => `<div class="item"><span class="mov-ico c-violet">${ic("calendar")}</span><div class="grow"><div class="name" style="font-size:15px">${G.fmtDateLong(x.date)}</div><div class="sub">${esc(x.note || "Sin cobro")}</div></div><button class="icon-btn" data-rmnp="${x.date}" aria-label="Quitar">${ic("x")}</button></div>`).join("")}</div>` : `<p class="hint" style="margin:0">No has agregado festivos.</p>`}
+          <div class="field field-float" style="min-height:56px">${ic("calendar")}<label><span>Fecha del festivo o día sin cobro</span><input id="np-date" type="date"></label></div>
+          <div class="field" style="min-height:56px">${ic("note")}<input id="np-note" maxlength="40" placeholder="Motivo (opcional): ej. Festivo"></div>
+          <button class="btn btn-soft" id="np-add">${ic("plus")}Agregar día sin cobro</button></div>
+
         <div class="setting-card"><div class="between"><h3>${ic("percent")}Recargo por atraso</h3><label class="switch"><input type="checkbox" id="aj-mora" ${m.enabled ? "checked" : ""}><span></span></label></div>
           <p class="hint" style="margin:0">Si está activado, cuando una cuota se vence se le suma un recargo una sola vez. Solo aplica a cuotas que se venzan desde que lo actives.</p>
           <div id="aj-mora-box" ${m.enabled ? "" : "hidden"} class="form">
@@ -1031,6 +1087,19 @@
         };
         const ld = $("#aj-logo-del", v); if (ld) ld.onclick = () => { config.logo = null; saveConfig(); refresh(); };
         $("#aj-save-co", v).onclick = () => { const n = $("#aj-name", v).value.trim(); if (n.length < 2) { toast("Escribe el nombre de la empresa."); return; } config.company = n; saveConfig(); toast("Nombre guardado"); };
+        // Días sin cobro
+        $$("[data-wd]", v).forEach((b) => b.onclick = () => {
+          const d = +b.dataset.wd; let wd = G.data.settings.noPay.weekdays.slice();
+          wd = wd.includes(d) ? wd.filter((x) => x !== d) : wd.concat(d);
+          if (wd.length >= 7) { toast("Debe haber al menos un día de cobro."); return; }
+          G.ops.setNoPayWeekdays(wd); G.applyMora(); refresh();
+        });
+        $$("[data-rmnp]", v).forEach((b) => b.onclick = () => { G.ops.removeNoPayDate(b.dataset.rmnp); refresh(); });
+        $("#np-add", v).onclick = () => {
+          const d = $("#np-date", v).value; if (!d) { toast("Elige la fecha."); return; }
+          G.ops.addNoPayDate(d, $("#np-note", v).value.trim()); toast("Día sin cobro agregado"); refresh();
+        };
+        if (stack[stack.length - 1].params.sec === "nopay") setTimeout(() => $("#sec-nopay", v).scrollIntoView({ behavior: "smooth", block: "start" }), 150);
         // Recargo
         const mstate = Object.assign({}, m);
         $("#aj-mora", v).onchange = (e) => { mstate.enabled = e.target.checked; $("#aj-mora-box", v).hidden = !e.target.checked; };

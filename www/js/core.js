@@ -49,7 +49,7 @@
   // ================= Almacenamiento =================
   const EMPTY = () => ({
     clients: [], loans: [], payments: [], movements: [],
-    settings: { mora: { enabled: false, type: "percent", value: 5, graceDays: 0, since: null } },
+    settings: { mora: { enabled: false, type: "percent", value: 5, graceDays: 0, since: null }, noPay: { weekdays: [0], dates: [] } },
     seq: { loan: 0 },
   });
   /* =====================================================================
@@ -75,6 +75,8 @@
     const e = EMPTY();
     const out = Object.assign(e, d, { settings: Object.assign(e.settings, d.settings || {}) });
     out.settings.mora = Object.assign(EMPTY().settings.mora, (d.settings || {}).mora || {});
+    out.settings.noPay = Object.assign(EMPTY().settings.noPay, (d.settings || {}).noPay || {});
+    out.loans.forEach((l) => { if (!Array.isArray(l.skipDates)) l.skipDates = []; });
     ["clients", "loans", "payments", "movements"].forEach((k) => { if (!Array.isArray(out[k])) out[k] = []; });
     out.seq = Object.assign({ loan: 0 }, d.seq || {});
     let v = Number(out.schema) || 1;
@@ -235,13 +237,45 @@
     if (freq === "quincenal") return addDays(start, 15 * i);
     return addMonths(start, i);
   }
-  function plan(amount, rate, count, freq, start) {
+  /* ----- Días sin cobro -----
+     - Días de la semana sin cobro para todos (por defecto: domingo).
+     - Fechas sin cobro para todos (festivos).
+     - Fechas sin cobro de un préstamo en particular ("quitar días" a un cliente).
+     Una cuota nunca cae en un día sin cobro: se corre al siguiente día válido,
+     así que esos días no cuentan como atraso. */
+  function noPayRules(loanSkip) {
+    const np = (data.settings && data.settings.noPay) || { weekdays: [0], dates: [] };
+    let wd = (np.weekdays || []).filter((x) => x >= 0 && x <= 6);
+    if (wd.length >= 7) wd = [];
+    return { weekdays: new Set(wd), dates: new Set([...(np.dates || []).map((x) => x.date || x), ...(loanSkip || [])]) };
+  }
+  function isNoPay(iso, rules) { return rules.weekdays.has(parseISO(iso).getDay()) || rules.dates.has(iso); }
+  function nextPayDay(iso, rules) { let d = iso; for (let k = 0; k < 400 && isNoPay(d, rules); k++) d = addDays(d, 1); return d; }
+  function noPayReason(iso, loan) {
+    const np = data.settings.noPay || {};
+    const g = (np.dates || []).find((x) => (x.date || x) === iso);
+    if (g) return g.note || "Festivo / día sin cobro";
+    if (loan && (loan.skipDates || []).includes(iso)) return "Día quitado a este cliente";
+    if ((np.weekdays || []).includes(parseISO(iso).getDay()) && (np.weekdays || []).length < 7) { const w = DIAS_LARGO[parseISO(iso).getDay()]; return "No se cobra los " + (w.endsWith("s") ? w : w + "s"); }
+    return null;
+  }
+
+  function plan(amount, rate, count, freq, start, loanSkip) {
     const interest = Math.round(amount * rate / 100);
     const total = amount + interest;
     const base = Math.floor(total / count);
+    const rules = noPayRules(loanSkip);
     const cuotas = [];
+    let prev = start, cur = start;
     for (let i = 1; i <= count; i++) {
-      cuotas.push({ n: i, date: dueDate(start, i, freq), base: i === count ? total - base * (count - 1) : base });
+      let d;
+      if (freq === "diaria") { cur = nextPayDay(addDays(cur, 1), rules); d = cur; }
+      else {
+        d = nextPayDay(dueDate(start, i, freq), rules);
+        if (d <= prev) d = nextPayDay(addDays(prev, 1), rules);
+      }
+      prev = d;
+      cuotas.push({ n: i, date: d, base: i === count ? total - base * (count - 1) : base });
     }
     return { interest, total, cuotaValue: base, cuotas, end: cuotas[count - 1].date };
   }
@@ -255,7 +289,7 @@
      (si sobra, pasa a la siguiente). */
   function computeLoan(loan, opts) {
     const t = today();
-    const p = plan(loan.amount, loan.rate, loan.count, loan.freq, loan.startDate);
+    const p = plan(loan.amount, loan.rate, loan.count, loan.freq, loan.startDate, loan.skipDates);
     const charges = loan.charges || [];
     const pays = data.payments.filter((x) => x.loanId === loan.id && x.amount > 0)
       .sort((a, b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));
@@ -477,7 +511,7 @@
     },
     createLoan(l) {
       data.seq.loan = (data.seq.loan || 0) + 1;
-      l.id = uid(); l.num = "P-" + String(data.seq.loan).padStart(4, "0"); l.charges = []; l.createdAt = new Date().toISOString();
+      l.id = uid(); l.num = "P-" + String(data.seq.loan).padStart(4, "0"); l.charges = []; l.skipDates = l.skipDates || []; l.createdAt = new Date().toISOString();
       data.loans.push(l); save(); return l;
     },
     deleteLoan(id) {
@@ -491,6 +525,20 @@
       l.charges = (l.charges || []).filter((x) => x.cuota !== cuota);
       l.waived = (l.waived || []).concat(cuota); save();
     },
+    skipLoanDate(loanId, iso) {
+      const l = data.loans.find((x) => x.id === loanId); l.skipDates = l.skipDates || [];
+      if (!l.skipDates.includes(iso)) l.skipDates.push(iso);
+      l.skipDates.sort(); save();
+    },
+    unskipLoanDate(loanId, iso) {
+      const l = data.loans.find((x) => x.id === loanId); l.skipDates = (l.skipDates || []).filter((x) => x !== iso); save();
+    },
+    setNoPayWeekdays(arr) { data.settings.noPay.weekdays = arr.slice().sort(); save(); },
+    addNoPayDate(iso, note) {
+      const np = data.settings.noPay; np.dates = (np.dates || []).filter((x) => (x.date || x) !== iso);
+      np.dates.push({ date: iso, note: note || "" }); np.dates.sort((a, b) => a.date.localeCompare(b.date)); save();
+    },
+    removeNoPayDate(iso) { const np = data.settings.noPay; np.dates = (np.dates || []).filter((x) => (x.date || x) !== iso); save(); },
     addMovement(m) { m.id = uid(); m.createdAt = new Date().toISOString(); data.movements.push(m); save(); return m; },
     deleteMovement(id) { data.movements = data.movements.filter((x) => x.id !== id); save(); },
     saveMora(m) {
@@ -521,7 +569,7 @@
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,
     money, moneyShort, parseMoney,
-    FREQ, plan, computeLoan, applyMora, state, totals, cuotasBetween, upcoming,
+    FREQ, plan, computeLoan, noPayRules, isNoPay, noPayReason, DIAS_LARGO, applyMora, state, totals, cuotasBetween, upcoming,
     period, finance, flow, movements, ops,
   };
 })();
