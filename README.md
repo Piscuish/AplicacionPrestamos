@@ -28,8 +28,13 @@ App para administrar un negocio de préstamos. Hecha con HTML/CSS/JS + Capacitor
 2. GitHub compila la app sola en unos 5 minutos y publica una **Release** con el APK (pestaña *Releases*).
 3. Descarga el `.apk` en el teléfono e instálalo. Android pedirá permitir "instalar apps de origen desconocido".
 
-Cada vez que subas cambios se publica una versión nueva y la app la detecta en
-**Configuración → Actualizaciones**. También la revisa sola una vez al día.
+Cada vez que subas cambios se publica una versión nueva y la app la detecta sola al abrirse.
+
+### Actualizaciones en vivo (sin instalar APK)
+- Si el cambio es solo de la app (pantallas, cálculos, diseño: todo lo que está en `www/`), la app **descarga la actualización sola** y la aplica la próxima vez que se abre. También se puede aplicar al momento desde el aviso en Inicio. No hay que instalar nada.
+- Si el cambio toca la parte nativa (carpeta `android/`, complementos en `package.json` o `capacitor.config.json`), el workflow lo detecta y la app pide instalar el APK, como antes.
+- **Protección:** si una versión nueva tiene un error y no abre bien, la app vuelve sola a la versión anterior, marca esa versión como fallida y no la reintenta.
+- Antes de aplicar cualquier actualización se guarda una copia automática de los datos.
 
 > Para que la app pueda consultar las versiones, el repositorio debe ser **público**.
 

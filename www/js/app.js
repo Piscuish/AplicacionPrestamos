@@ -245,10 +245,17 @@
   }
 
   // ---------- Inicio (primero se verifican/recuperan los datos) ----------
-  const start = () => {
+  const start = (r) => {
+    if (r === "reloading") { setTimeout(() => start(), 6000); return; } // se está aplicando una actualización en vivo
     const config = store.get();
     if (config && config.passwordHash) openLogin(config);
     else show("welcome");
+    // La app abrió bien: se le avisa al sistema de actualizaciones en vivo.
+    // Si una versión nueva tuviera un error y no llegara aquí, se vuelve sola a la anterior.
+    try {
+      const U = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater;
+      if (U && $("#screen-" + current) && !$("#screen-" + current).hidden) U.notifyAppReady();
+    } catch (e) { /* navegador */ }
   };
-  Promise.race([window.GP.ready(), new Promise((r) => setTimeout(r, 2500))]).then(start, start);
+  Promise.race([window.GP.ready(), new Promise((r) => setTimeout(r, 4000))]).then(start, () => start());
 })();

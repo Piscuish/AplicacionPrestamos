@@ -1,8 +1,11 @@
 name: Compilar APK
 
 # Cada vez que subes cambios a la rama main se compila una versión nueva
-# y se publica como "Release" en GitHub. La app la detecta en
-# Configuración > Actualizaciones.
+# y se publica como "Release" en GitHub con dos archivos:
+#   - GestionPrestamos-1.0.N.apk  -> para instalar la app o cambios nativos
+#   - www-N-nM-hHASH.zip          -> actualización EN VIVO (sin instalar APK)
+# M = versión mínima del APK que puede usar ese paquete. Si cambia la parte
+# nativa (Android, complementos, capacitor.config.json), M sube y la app pide APK.
 #
 # REGLA PARA NO PERDER DATOS AL ACTUALIZAR (no cambiar):
 #   - applicationId: com.piscuish.prestamos
@@ -36,6 +39,20 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Versión nativa mínima (decide si la actualización puede ser en vivo)
+        id: nat
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BUILD=$((${{ github.run_number }} + 100))
+          HASH=$( (git ls-files -z android capacitor.config.json | xargs -0 sha256sum; node -e "console.log(JSON.stringify(require('./package.json').dependencies))") | sha256sum | cut -c1-10)
+          PREV=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '[.assets[].name | select(startswith("www-"))][0] // ""' || true)
+          MIN=$BUILD
+          if [[ "$PREV" =~ ^www-[0-9]+-n([0-9]+)-h([0-9a-f]+)\.zip$ ]] && [ "${BASH_REMATCH[2]}" = "$HASH" ]; then MIN=${BASH_REMATCH[1]}; fi
+          echo "Paquete anterior: $PREV | hash nativo: $HASH | APK mínimo: $MIN"
+          echo "min=$MIN" >> "$GITHUB_OUTPUT"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
       - name: Copiar la app al proyecto Android
         run: npx cap sync android
 
@@ -57,6 +74,11 @@ jobs:
       - name: Renombrar APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk GestionPrestamos-${{ steps.ver.outputs.name }}.apk
 
+      - name: Paquete para actualización en vivo
+        run: |
+          cd www && zip -qr "../www-${{ steps.ver.outputs.build }}-n${{ steps.nat.outputs.min }}-h${{ steps.nat.outputs.hash }}.zip" . && cd ..
+          ls -l www-*.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: GestionPrestamos-${{ steps.ver.outputs.name }}
@@ -68,5 +90,7 @@ jobs:
           tag_name: v${{ steps.ver.outputs.name }}
           name: Versión ${{ steps.ver.outputs.name }}
           body: ${{ github.event.head_commit.message || 'Nueva versión' }}
-          files: GestionPrestamos-*.apk
+          files: |
+            GestionPrestamos-*.apk
+            www-*.zip
           make_latest: true

@@ -2,5 +2,15 @@
   "appId": "com.piscuish.prestamos",
   "appName": "Gestión de Préstamos",
   "webDir": "www",
-  "android": { "backgroundColor": "#0b2a5b" }
+  "android": {
+    "backgroundColor": "#0b2a5b"
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 15000,
+      "resetWhenUpdate": true,
+      "statsUrl": ""
+    }
+  }
 }

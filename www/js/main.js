@@ -245,6 +245,7 @@
 
   // ---------- INICIO ----------
   Screens.inicio = () => {
+    setTimeout(() => { const b = $("#live-apply"); if (b) b.onclick = () => Update.applyLiveNow(); });
     const T = G.totals();
     const up = G.upcoming(6);
     const empty = !G.data.clients.length;
@@ -253,7 +254,8 @@
         brand: `<button class="appbar-brand brand-btn" data-go="ajustes" aria-label="Configuración"><div class="mini-logo">${logoHtml()}</div><div style="min-width:0;text-align:left"><h1>${esc(config.company)}</h1><p>Gestión de Préstamos</p></div></button>`,
         right: `<button class="icon-btn" data-go="ajustes" aria-label="Configuración">${ic("settings")}</button>`,
       }) + `<main class="body">
-        ${Update.available ? `<button class="update-banner" data-go="ajustes">${ic("download")}<div><b>Nueva versión disponible (${esc(Update.available.version)})</b><span>Toca para actualizar. Tus datos no se borran.</span></div>${ic("right")}</button>` : ""}
+        ${Update.liveReady ? `<button class="update-banner" id="live-apply">${ic("repeat")}<div><b>Actualización lista (${esc(Update.liveReady.version)})</b><span>Se aplica sola la próxima vez que abras la app. Toca para aplicarla ahora.</span></div>${ic("right")}</button>`
+          : Update.available ? `<button class="update-banner" data-go="ajustes">${ic("download")}<div><b>Nueva versión disponible (${esc(Update.available.version)})</b><span>Toca para actualizar. Tus datos no se borran.</span></div>${ic("right")}</button>` : ""}
         <p class="greet">Hola, <b>${esc(config.username)}</b></p>
         <div class="hero-card"><div class="lbl">Por cobrar</div><div class="big">${money(T.pending)}</div>
           <div class="meta"><span>${plural(T.activeLoans, "préstamo activo", "préstamos activos")}</span>${T.overdueLoans ? `<span>⚠ ${plural(T.overdueLoans, "vencido", "vencidos")}</span>` : ""}</div>
@@ -992,7 +994,7 @@
           <div class="kv"><div class="between"><span>Versión instalada</span><span id="up-cur">${esc(Update.current.version)}</span></div></div>
           <div id="up-box"></div>
           <button class="btn btn-primary" id="up-check">${ic("search")}Buscar actualizaciones</button>
-          <p class="hint" style="margin:0">La app busca actualizaciones sola cada vez que la abres. Al actualizar se conservan todos tus clientes, préstamos y pagos; aun así, te recomendamos guardar una copia antes.</p></div>
+          <p class="hint" style="margin:0">La app busca actualizaciones sola cada vez que la abres. Las actualizaciones normales se descargan y aplican solas, sin instalar APK; solo los cambios grandes (ícono, permisos) piden instalar APK. Al actualizar se conservan todos tus clientes, préstamos y pagos; aun así, te recomendamos guardar una copia antes.</p></div>
 
         <div class="setting-card"><div class="between"><h3>${ic("percent")}Recargo por atraso</h3><label class="switch"><input type="checkbox" id="aj-mora" ${m.enabled ? "checked" : ""}><span></span></label></div>
           <p class="hint" style="margin:0">Si está activado, cuando una cuota se vence se le suma un recargo una sola vez. Solo aplica a cuotas que se venzan desde que lo actives.</p>
@@ -1064,6 +1066,20 @@
           if (r.error) { upBox.innerHTML = `<div class="total-row" style="background:#fdecec;color:#b42a2a">${esc(r.error)}</div>`; return; }
           if (!r.release) { upBox.innerHTML = `<div class="total-row" style="background:#e5f6ec;color:#11743a">✓ Tienes la última versión.</div>`; return; }
           const rel = r.release;
+          if (rel.live) {
+            upBox.innerHTML = `<div class="kv" style="padding:12px 14px;border-color:#b9d0f7;background:#f4f8ff">
+              <b class="blue">Nueva versión ${esc(rel.version)}</b><div class="small muted" style="margin-top:2px">Actualización rápida: no necesita instalar APK.</div>
+              ${rel.notes ? `<div class="small" style="white-space:pre-wrap;margin-top:8px">${esc(rel.notes.slice(0, 600))}</div>` : ""}</div>
+              <button class="btn btn-primary" id="up-live">${ic("repeat")}Actualizar ahora</button>
+              <p class="hint" style="margin:0">La app se reinicia en unos segundos con la versión nueva. Tus datos no se tocan y antes se guarda una copia automática.</p>`;
+            $("#up-live", v).onclick = async () => {
+              const b = $("#up-live", v); b.disabled = true; b.lastChild.textContent = "Descargando…";
+              const ok = await Update.downloadLive(rel, false);
+              b.disabled = false; b.lastChild.textContent = "Actualizar ahora";
+              if (ok) Update.applyLiveNow(); else toast("No se pudo descargar. Revisa tu conexión.");
+            };
+            return;
+          }
           upBox.innerHTML = `<div class="kv" style="padding:12px 14px;border-color:#b9d0f7;background:#f4f8ff">
             <b class="blue">Nueva versión ${esc(rel.version)}</b><div class="small muted" style="margin-top:2px">Publicada el ${G.fmtDate(rel.date)}${rel.size ? " · " + (rel.size / 1048576).toFixed(1).replace(".", ",") + " MB" : ""}</div>
             ${rel.notes ? `<div class="small" style="white-space:pre-wrap;margin-top:8px">${esc(rel.notes.slice(0, 600))}</div>` : ""}</div>
@@ -1143,8 +1159,8 @@
     available: null,
     async init() {
       try {
-        const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-        if (A && A.getInfo) { const i = await A.getInfo(); this.current = { version: i.version, build: parseInt(i.build, 10) || 0 }; }
+        const vi = await G.versionInfo();
+        this.current = { version: vi.webVersion, build: vi.webBuild, nativeBuild: vi.nativeBuild, canLive: vi.canLive, live: vi.live };
       } catch (e) { /* navegador */ }
       this.welcome();
       // Revisión automática: al abrir la app y al volver a ella (máximo cada 30 min)
@@ -1179,9 +1195,42 @@
       this.lastAuto = Date.now();
       const r = await this.check(false);
       if (!r.release) return;
+      if (r.release.live) { await this.downloadLive(r.release, false); }
       const cur = stack.length && stack[stack.length - 1];
       if (cur && cur.name === "inicio") refresh();
-      this.prompt();
+      if (!r.release.live) this.prompt();
+    },
+    /* Descarga la actualización en vivo (sin APK). Queda lista y se aplica
+       la próxima vez que se abra la app, o al tocar "Aplicar ahora". */
+    liveReady: null,
+    async downloadLive(rel, applyNow) {
+      const U = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater;
+      if (!U) return false;
+      try {
+        let pend = null; try { pend = JSON.parse(localStorage.getItem("gp.live.pending")); } catch (e) { /* nada */ }
+        if (!pend || pend.build !== rel.build) {
+          const b = await U.download({ url: rel.webUrl, version: rel.version });
+          pend = { id: b.id, build: rel.build, version: rel.version };
+          localStorage.setItem("gp.live.pending", JSON.stringify(pend));
+          localStorage.removeItem("gp.live.tried");
+        }
+        this.liveReady = pend;
+        if (applyNow) {
+          G.snapshot("antes de actualización en vivo → " + rel.build);
+          await G.mirrorNow();
+          localStorage.setItem("gp.live.tried", String(rel.build));
+          await U.set({ id: pend.id });
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+    async applyLiveNow() {
+      if (!this.liveReady) return;
+      if (!(await confirmBox("Aplicar actualización", "La app se reiniciará en unos segundos con la versión " + esc(this.liveReady.version) + ". Tus datos no se tocan. Tendrás que volver a iniciar sesión.", "Aplicar ahora"))) return;
+      toast("Actualizando…");
+      await this.downloadLive({ build: this.liveReady.build, version: this.liveReady.version, webUrl: "" }, true);
     },
     prompt() {
       const rel = this.available;
@@ -1208,8 +1257,11 @@
         const m = String(j.tag_name || "").match(/(\d+)\.(\d+)\.(\d+)/);
         const build = m ? parseInt(m[3], 10) : 0;
         const apk = (j.assets || []).find((a) => /\.apk$/i.test(a.name));
+        let web = null;
+        for (const a of j.assets || []) { const w = a.name.match(/^www-(\d+)-n(\d+)(?:-h[0-9a-f]+)?\.zip$/); if (w) web = { url: a.browser_download_url, minNative: +w[2] }; }
         if (build > this.current.build) {
-          this.available = { version: m ? m[0] : j.tag_name, build, date: String(j.published_at || "").slice(0, 10) || G.today(), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url };
+          const live = !!(web && this.current.canLive && this.current.nativeBuild >= web.minNative && localStorage.getItem("gp.live.failed") !== String(build));
+          this.available = { version: m ? m[0] : j.tag_name, build, date: String(j.published_at || "").slice(0, 10) || G.today(), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url, live, webUrl: web && web.url };
           return { release: this.available };
         }
         this.available = null; return {};

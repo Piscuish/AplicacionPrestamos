@@ -140,6 +140,54 @@
     }
   }
 
+  /* ----- Versiones -----
+     nativeBuild: versión del APK instalado.
+     webBuild: versión de las pantallas/lógica en uso (puede ser más nueva si
+     llegó una actualización en vivo sin APK). */
+  let verPromise = null;
+  function versionInfo() {
+    if (verPromise) return verPromise;
+    verPromise = (async () => {
+      const C = window.Capacitor; const Pl = C && C.Plugins;
+      const native = !!(C && C.isNativePlatform && C.isNativePlatform());
+      const v = { nativeBuild: 0, nativeVersion: "1.0", webBuild: 0, webVersion: "1.0", live: false, canLive: false };
+      try { if (Pl && Pl.App && Pl.App.getInfo) { const i = await Pl.App.getInfo(); v.nativeBuild = parseInt(i.build, 10) || 0; v.nativeVersion = i.version; } } catch (e) { /* navegador */ }
+      v.webBuild = v.nativeBuild; v.webVersion = v.nativeVersion;
+      try {
+        if (native && Pl && Pl.CapacitorUpdater) {
+          v.canLive = true;
+          const c = await Pl.CapacitorUpdater.current();
+          if (c && c.bundle && c.bundle.id !== "builtin") {
+            const m = String(c.bundle.version || "").match(/(\d+)\.(\d+)\.(\d+)/);
+            if (m && +m[3] > v.nativeBuild) { v.webBuild = +m[3]; v.webVersion = m[0]; v.live = true; }
+          }
+        }
+      } catch (e) { /* sin complemento */ }
+      return v;
+    })();
+    return verPromise;
+  }
+
+  /* Si hay una actualización en vivo ya descargada, se aplica al ABRIR la app
+     (nunca en medio del trabajo). Si esa versión falló antes, no se reintenta. */
+  async function applyPendingLive() {
+    const C = window.Capacitor; const U = C && C.Plugins && C.Plugins.CapacitorUpdater;
+    let pend = null; try { pend = JSON.parse(localStorage.getItem("gp.live.pending")); } catch (e) { /* nada */ }
+    if (!U || !pend) return false;
+    const v = await versionInfo();
+    if (v.webBuild >= pend.build) { localStorage.removeItem("gp.live.pending"); localStorage.removeItem("gp.live.tried"); return false; }
+    if (localStorage.getItem("gp.live.tried") === String(pend.build)) {
+      // Ya se intentó y la app volvió sola a la versión anterior: esa versión falló.
+      localStorage.setItem("gp.live.failed", String(pend.build));
+      localStorage.removeItem("gp.live.pending"); localStorage.removeItem("gp.live.tried");
+      return false;
+    }
+    localStorage.setItem("gp.live.tried", String(pend.build));
+    snapshot("antes de actualización en vivo → " + pend.build);
+    await mirrorNow();
+    try { await U.set({ id: pend.id }); return true; } catch (e) { localStorage.removeItem("gp.live.pending"); return false; }
+  }
+
   /* Se llama al abrir la app (antes del login). Recupera datos si hiciera falta
      y hace la copia automática cuando cambia la versión instalada. */
   async function ready() {
@@ -157,10 +205,10 @@
         mirrorNow(); // primera vez con esta protección: crear el espejo
       }
     } catch (e) { /* nunca bloquear el inicio */ }
+    try { if (await applyPendingLive()) return "reloading"; } catch (e) { /* seguir */ }
     try {
-      let build = "web";
-      const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-      if (A && A.getInfo) build = String((await A.getInfo()).build);
+      const v = await versionInfo();
+      const build = v.webBuild ? String(v.webBuild) : "web";
       const last = localStorage.getItem("gp.lastBuild");
       if (last && last !== build) { snapshot("actualización " + last + " → " + build); window.GP.updatedFrom = last; }
       else snapshot("diaria");
@@ -469,7 +517,7 @@
   }
 
   window.GP = {
-    get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot,
+    get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot, versionInfo, mirrorNow, snapshot,
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,
     money, moneyShort, parseMoney,
