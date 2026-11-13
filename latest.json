@@ -1,0 +1,13 @@
+{
+  "version": "1.0.114",
+  "build": 114,
+  "minNative": 109,
+  "apkUrl": "https://github.com/Piscuish/AplicacionPrestamos/releases/download/v1.0.114/GestionPrestamos-1.0.114.apk",
+  "apkSize": 7037025,
+  "webUrl": "https://github.com/Piscuish/AplicacionPrestamos/releases/download/v1.0.114/www-114-n109-h18ccab6a71.zip",
+  "webSha256": "49d4939ac4be47a704da2e9ce29cc5e6c6f189599694b2123679317b8eca3434",
+  "nativeHash": "18ccab6a71",
+  "notes": "Ofrecer el APK aunque la app esté al día si la base instalada es más antigua\n\nAsí se puede actualizar el ícono del celular desde Configuración > Actualizaciones.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01SUN61Nop3pNQUE2zkjirS5",
+  "date": "2026-11-13",
+  "page": "https://github.com/Piscuish/AplicacionPrestamos/releases/tag/v1.0.114"
+}
