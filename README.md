@@ -32,7 +32,8 @@ Cada vez que subas cambios se publica una versión nueva y la app la detecta sol
 
 ### Actualizaciones en vivo (sin instalar APK)
 - Si el cambio es solo de la app (pantallas, cálculos, diseño: todo lo que está en `www/`), la app **descarga la actualización sola** y la aplica la próxima vez que se abre. También se puede aplicar al momento desde el aviso en Inicio. No hay que instalar nada.
-- Si el cambio toca la parte nativa (carpeta `android/`, complementos en `package.json` o `capacitor.config.json`), el workflow lo detecta y la app pide instalar el APK, como antes.
+- Si el cambio agrega complementos (`package.json`), cambia `capacitor.config.json` o los permisos (`AndroidManifest.xml`), la app pide instalar el APK. El archivo `android-compat.txt` guarda la versión de APK mínima compatible; súbelo al número de la nueva versión cuando agregues un complemento o permiso (si se te olvida, el workflow lo detecta y exige el APK igual).
+- Cambiar el ícono o la pantalla de carga NO bloquea las actualizaciones en vivo: el ícono nuevo se ve al instalar el APK, pero el resto de la app se sigue actualizando sola.
 - **Protección:** si una versión nueva tiene un error y no abre bien, la app vuelve sola a la versión anterior, marca esa versión como fallida y no la reintenta.
 - Antes de aplicar cualquier actualización se guarda una copia automática de los datos.
 

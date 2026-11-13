@@ -204,7 +204,7 @@
 
   function logoHtml() {
     if (config.logo) return `<img src="${config.logo}" alt="">`;
-    return G.logoSvg();
+    return '<svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#123a7a"/><g fill="#fff"><rect x="26" y="50" width="11" height="22" rx="2.5"/><rect x="42" y="38" width="11" height="34" rx="2.5"/><rect x="58" y="26" width="11" height="46" rx="2.5"/></g><path d="M18 74c18 10 50 8 64-22-10 18-36 26-60 18Z" fill="#7fb2ff"/></svg>';
   }
 
   function drawer() {
@@ -1278,7 +1278,7 @@
   function setLogoCache() {
     let img = $("#rc-logo-cache");
     if (!img) { img = new Image(); img.id = "rc-logo-cache"; img.hidden = true; document.body.appendChild(img); }
-    img.src = config.logo || G.LOGO_URL;
+    if (config.logo) img.src = config.logo; else img.removeAttribute("src");
   }
 
   // ================= Actualizaciones desde GitHub =================

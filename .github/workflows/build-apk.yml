@@ -45,11 +45,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           BUILD=$((${{ github.run_number }} + 100))
-          HASH=$( (git ls-files -z android capacitor.config.json | xargs -0 sha256sum; node -e "console.log(JSON.stringify(require('./package.json').dependencies))") | sha256sum | cut -c1-10)
-          PREV=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '[.assets[].name | select(startswith("www-"))][0] // ""' || true)
-          MIN=$BUILD
-          if [[ "$PREV" =~ ^www-[0-9]+-n([0-9]+)-h([0-9a-f]+)\.zip$ ]] && [ "${BASH_REMATCH[2]}" = "$HASH" ]; then MIN=${BASH_REMATCH[1]}; fi
-          echo "Paquete anterior: $PREV | hash nativo: $HASH | APK mínimo: $MIN"
+          # Solo cuenta lo que cambia la comunicación entre la app y Android:
+          # complementos (package.json), capacitor.config.json y AndroidManifest.
+          # El ícono, la pantalla de carga y otras imágenes NO bloquean las actualizaciones en vivo.
+          HASH=$( (sha256sum capacitor.config.json android/app/src/main/AndroidManifest.xml; node -e "console.log(JSON.stringify(require('./package.json').dependencies))") | sha256sum | cut -c1-10)
+          COMPAT=$(tr -dc '0-9' < android-compat.txt)
+          PREV=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/updates/latest.json" || echo '{}')
+          PREV_HASH=$(echo "$PREV" | jq -r '.nativeHash // ""')
+          PREV_MIN=$(echo "$PREV" | jq -r '.minNative // 0')
+          MIN=$COMPAT
+          if [ -n "$PREV_HASH" ] && [ "$PREV_HASH" != "$HASH" ] && [ "$COMPAT" -le "$PREV_MIN" ]; then
+            echo "Cambió la parte nativa (complementos/permisos) y android-compat.txt no se actualizó: se exige este APK."
+            MIN=$BUILD
+          elif [ -n "$PREV_HASH" ] && [ "$PREV_HASH" = "$HASH" ] && [ "$PREV_MIN" -gt "$MIN" ]; then
+            MIN=$PREV_MIN
+          fi
+          echo "hash nativo: $HASH (antes: ${PREV_HASH:-ninguno}) | APK mínimo: $MIN"
           echo "min=$MIN" >> "$GITHUB_OUTPUT"
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
@@ -110,10 +121,10 @@ jobs:
           WWW=$(ls www-*.zip | head -1)
           APK=$(ls GestionPrestamos-*.apk | head -1)
           WSHA=$(sha256sum "$WWW" | cut -d' ' -f1)
-          jq -n --arg v "$NAME" --argjson b "$BUILD" --argjson m "$MIN" --arg apk "$BASE/$APK" --arg web "$BASE/$WWW" --arg wsha "$WSHA" \
+          jq -n --arg v "$NAME" --argjson b "$BUILD" --argjson m "$MIN" --arg apk "$BASE/$APK" --arg web "$BASE/$WWW" --arg wsha "$WSHA" --arg nh "${{ steps.nat.outputs.hash }}" \
                 --argjson size "$(stat -c %s "$APK")" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%d)" \
                 --arg page "https://github.com/${{ github.repository }}/releases/tag/v$NAME" \
-                '{version:$v, build:$b, minNative:$m, apkUrl:$apk, apkSize:$size, webUrl:$web, webSha256:$wsha, notes:$notes, date:$date, page:$page}' > latest.json
+                '{version:$v, build:$b, minNative:$m, apkUrl:$apk, apkSize:$size, webUrl:$web, webSha256:$wsha, nativeHash:$nh, notes:$notes, date:$date, page:$page}' > latest.json
           cat latest.json
           mkdir -p /tmp/upd && cp latest.json /tmp/upd/ && cd /tmp/upd
           git init -q && git checkout -q -b updates

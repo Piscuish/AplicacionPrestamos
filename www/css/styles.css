@@ -463,7 +463,3 @@ button.item:active { background: var(--bg-soft); }
 .has-tabbar .toast { bottom: calc(96px + var(--safe-bottom)); }
 #up-box { display: flex; flex-direction: column; gap: 10px; } #up-box:empty { display: none; }
 .cal-day.nopay:not(.sel) { color: #a3adbf; background: repeating-linear-gradient(135deg, #f3f5f9 0 4px, #e9edf3 4px 8px); }
-/* Logo por defecto: sin marco blanco */
-.company-logo:has(> svg) { padding: 0; background: transparent; }
-.company-logo > svg { border-radius: inherit; }
-.appbar-brand .mini-logo:has(> svg) { background: transparent; }
