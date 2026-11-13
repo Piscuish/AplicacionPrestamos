@@ -1175,7 +1175,8 @@
               const b = $("#up-live", v); b.disabled = true; b.lastChild.textContent = "Descargando…";
               const ok = await Update.downloadLive(rel, false);
               b.disabled = false; b.lastChild.textContent = "Actualizar ahora";
-              if (ok) Update.applyLiveNow(); else toast("No se pudo descargar. Revisa tu conexión.");
+              if (ok) { Update.applyLiveNow(); return; }
+              alertBox("No se pudo descargar la actualización rápida", "Puedes usar el botón «Actualizar mediante APK». Detalle: " + esc(Update.liveError || "desconocido"));
             };
             return;
           }
@@ -1294,7 +1295,10 @@
       this.lastAuto = Date.now();
       const r = await this.check(false);
       if (!r.release) return;
-      if (r.release.live) { await this.downloadLive(r.release, false); }
+      if (r.release.live) {
+        const ok = await this.downloadLive(r.release, false);
+        if (!ok) { r.release.live = false; r.release.liveFailed = true; }
+      }
       const cur = stack.length && stack[stack.length - 1];
       if (cur && cur.name === "inicio") refresh();
       if (!r.release.live) this.prompt();
@@ -1308,7 +1312,8 @@
       try {
         let pend = null; try { pend = JSON.parse(localStorage.getItem("gp.live.pending")); } catch (e) { /* nada */ }
         if (!pend || pend.build !== rel.build) {
-          const b = await U.download({ url: rel.webUrl, version: rel.version });
+          if (!rel.webSha256) throw new Error("Falta la huella (checksum) del paquete");
+          const b = await U.download({ url: rel.webUrl, version: rel.version, checksum: rel.webSha256 });
           pend = { id: b.id, build: rel.build, version: rel.version };
           localStorage.setItem("gp.live.pending", JSON.stringify(pend));
           localStorage.removeItem("gp.live.tried");
@@ -1320,11 +1325,14 @@
           localStorage.setItem("gp.live.tried", String(rel.build));
           await U.set({ id: pend.id });
         }
+        this.liveError = null;
         return true;
       } catch (e) {
+        this.liveError = String((e && (e.message || e.errorMessage)) || e || "error");
         return false;
       }
     },
+    liveError: null,
     async applyLiveNow() {
       if (!this.liveReady) return;
       if (!(await confirmBox("Aplicar actualización", "La app se reiniciará en unos segundos con la versión " + esc(this.liveReady.version) + ". Tus datos no se tocan. Tendrás que volver a iniciar sesión.", "Aplicar ahora"))) return;
@@ -1341,7 +1349,7 @@
       layer().innerHTML = `<div class="modal"><div class="modal-card" style="text-align:center">
         <div style="width:64px;height:64px;border-radius:18px;background:#e6efff;color:#1d5bd8;display:grid;place-items:center;margin:0 auto 12px">${ic("download")}</div>
         <h3>Nueva versión disponible</h3>
-        <p>Ya está lista la versión <b>${esc(rel.version)}</b>.${rel.notes ? `<br><span class="small">${esc(rel.notes.slice(0, 160))}</span>` : ""}<br><br>Tus clientes, préstamos y pagos <b>no se borran</b> al actualizar.</p>
+        <p>Ya está lista la versión <b>${esc(rel.version)}</b>.${rel.liveFailed ? `<br><span class="small">No se pudo descargar la actualización rápida; puedes actualizar con el APK.</span>` : ""}${rel.notes ? `<br><span class="small">${esc(rel.notes.slice(0, 160))}</span>` : ""}<br><br>Tus clientes, préstamos y pagos <b>no se borran</b> al actualizar.</p>
         <div class="form"><button class="btn btn-primary" id="upd-now">${ic("download")}Actualizar ahora</button><button class="btn btn-soft" id="upd-later">Más tarde</button></div></div></div>`;
       $("#upd-later", layer()).onclick = () => { this.dismissed = rel.build; closeLayer(); };
       $("#upd-now", layer()).onclick = () => { closeLayer(); go("ajustes", { update: true }); };
@@ -1354,7 +1362,7 @@
         const r = await fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/updates/latest.json?t=${Date.now()}`, { cache: "no-store" });
         if (r.ok) {
           const j = await r.json();
-          if (j && j.build) return { build: +j.build, version: j.version, date: j.date, notes: j.notes || "", apkUrl: j.apkUrl, size: j.apkSize, page: j.page, web: j.webUrl ? { url: j.webUrl, minNative: +j.minNative || 0 } : null };
+          if (j && j.build) return { build: +j.build, version: j.version, date: j.date, notes: j.notes || "", apkUrl: j.apkUrl, size: j.apkSize, page: j.page, web: j.webUrl && j.webSha256 ? { url: j.webUrl, minNative: +j.minNative || 0, sha256: String(j.webSha256).toLowerCase() } : null };
         } else lastErr = r.status;
       } catch (e) { lastErr = "net"; }
       try {
@@ -1365,7 +1373,7 @@
         const m = String(j.tag_name || "").match(/(\d+)\.(\d+)\.(\d+)/);
         const apk = (j.assets || []).find((x) => /\.apk$/i.test(x.name));
         let web = null;
-        for (const x of j.assets || []) { const w = x.name.match(/^www-(\d+)-n(\d+)(?:-h[0-9a-f]+)?\.zip$/); if (w) web = { url: x.browser_download_url, minNative: +w[2] }; }
+        for (const x of j.assets || []) { const w = x.name.match(/^www-(\d+)-n(\d+)(?:-h[0-9a-f]+)?\.zip$/); const d = String(x.digest || "").match(/^sha256:([0-9a-f]{64})$/i); if (w && d) web = { url: x.browser_download_url, minNative: +w[2], sha256: d[1].toLowerCase() }; }
         return { build: m ? +m[3] : 0, version: m ? m[0] : j.tag_name, date: String(j.published_at || "").slice(0, 10), notes: j.body || "", apkUrl: apk && apk.browser_download_url, size: apk && apk.size, page: j.html_url, web };
       } catch (e) { return { status: lastErr === "net" ? "net" : lastErr || "net" }; }
     },
@@ -1384,7 +1392,7 @@
       }
       if (r.build > this.current.build) {
         const live = !!(r.web && this.current.canLive && this.current.nativeBuild >= r.web.minNative && localStorage.getItem("gp.live.failed") !== String(r.build));
-        this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: this.cleanNotes(r.notes), apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url };
+        this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: this.cleanNotes(r.notes), apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url, webSha256: r.web && r.web.sha256 };
         return { release: this.available };
       }
       this.available = null; return {};

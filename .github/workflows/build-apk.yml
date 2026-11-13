@@ -109,10 +109,11 @@ jobs:
           BASE="https://github.com/${{ github.repository }}/releases/download/v$NAME"
           WWW=$(ls www-*.zip | head -1)
           APK=$(ls GestionPrestamos-*.apk | head -1)
-          jq -n --arg v "$NAME" --argjson b "$BUILD" --argjson m "$MIN" --arg apk "$BASE/$APK" --arg web "$BASE/$WWW" \
+          WSHA=$(sha256sum "$WWW" | cut -d' ' -f1)
+          jq -n --arg v "$NAME" --argjson b "$BUILD" --argjson m "$MIN" --arg apk "$BASE/$APK" --arg web "$BASE/$WWW" --arg wsha "$WSHA" \
                 --argjson size "$(stat -c %s "$APK")" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%d)" \
                 --arg page "https://github.com/${{ github.repository }}/releases/tag/v$NAME" \
-                '{version:$v, build:$b, minNative:$m, apkUrl:$apk, apkSize:$size, webUrl:$web, notes:$notes, date:$date, page:$page}' > latest.json
+                '{version:$v, build:$b, minNative:$m, apkUrl:$apk, apkSize:$size, webUrl:$web, webSha256:$wsha, notes:$notes, date:$date, page:$page}' > latest.json
           cat latest.json
           mkdir -p /tmp/upd && cp latest.json /tmp/upd/ && cd /tmp/upd
           git init -q && git checkout -q -b updates
