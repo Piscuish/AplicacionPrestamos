@@ -271,6 +271,8 @@
       [monday(fx(6, 29)), "San Pedro y San Pablo"], [fx(7, 20), "Día de la Independencia"], [fx(8, 7), "Batalla de Boyacá"],
       [monday(fx(8, 15)), "La Asunción de la Virgen"], [monday(fx(10, 12)), "Día de la Raza"], [monday(fx(11, 1)), "Todos los Santos"],
       [monday(fx(11, 11)), "Independencia de Cartagena"], [fx(12, 8), "Inmaculada Concepción"], [fx(12, 25), "Navidad"],
+      // Festivos adicionales pedidos por el negocio (fecha fija todos los años)
+      [fx(7, 12), "12 de julio"],
     ].map(([date, name]) => ({ date, name })).sort((a, b) => a.date.localeCompare(b.date));
     coCache[y] = { list, map: new Map(list.map((x) => [x.date, x.name])) };
     return coCache[y];
