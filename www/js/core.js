@@ -49,7 +49,7 @@
   // ================= Almacenamiento =================
   const EMPTY = () => ({
     clients: [], loans: [], payments: [], movements: [],
-    settings: { mora: { enabled: false, type: "percent", value: 5, graceDays: 0, since: null }, noPay: { weekdays: [0], dates: [] } },
+    settings: { mora: { enabled: false, type: "percent", value: 5, graceDays: 0, since: null }, noPay: { weekdays: [0], dates: [], colombia: true, colombiaOff: [] } },
     seq: { loan: 0 },
   });
   /* =====================================================================
@@ -243,18 +243,60 @@
      - Fechas sin cobro de un préstamo en particular ("quitar días" a un cliente).
      Una cuota nunca cae en un día sin cobro: se corre al siguiente día válido,
      así que esos días no cuentan como atraso. */
+  /* ----- Festivos de Colombia (Ley 51 de 1983, "Ley Emiliani") -----
+     Se calculan solos para cualquier año:
+     - Fijos: 1 ene, 1 may, 20 jul, 7 ago, 8 dic, 25 dic.
+     - Se pasan al lunes siguiente: Reyes (6 ene), San José (19 mar),
+       San Pedro y San Pablo (29 jun), Asunción (15 ago), Día de la Raza (12 oct),
+       Todos los Santos (1 nov), Independencia de Cartagena (11 nov).
+     - Según la Pascua: Jueves y Viernes Santo; Ascensión (+43 días),
+       Corpus Christi (+64) y Sagrado Corazón (+71), ya en lunes. */
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+    return toISO(new Date(y, mo - 1, da));
+  }
+  const coCache = {};
+  function colombiaHolidays(y) {
+    if (coCache[y]) return coCache[y];
+    const fx = (m, d) => toISO(new Date(y, m - 1, d));
+    const monday = (iso) => { const wd = parseISO(iso).getDay(); return wd === 1 ? iso : addDays(iso, (8 - wd) % 7); };
+    const E = easter(y);
+    const list = [
+      [fx(1, 1), "Año Nuevo"], [monday(fx(1, 6)), "Día de los Reyes Magos"], [monday(fx(3, 19)), "Día de San José"],
+      [addDays(E, -3), "Jueves Santo"], [addDays(E, -2), "Viernes Santo"], [fx(5, 1), "Día del Trabajo"],
+      [addDays(E, 43), "Ascensión del Señor"], [addDays(E, 64), "Corpus Christi"], [addDays(E, 71), "Sagrado Corazón"],
+      [monday(fx(6, 29)), "San Pedro y San Pablo"], [fx(7, 20), "Día de la Independencia"], [fx(8, 7), "Batalla de Boyacá"],
+      [monday(fx(8, 15)), "La Asunción de la Virgen"], [monday(fx(10, 12)), "Día de la Raza"], [monday(fx(11, 1)), "Todos los Santos"],
+      [monday(fx(11, 11)), "Independencia de Cartagena"], [fx(12, 8), "Inmaculada Concepción"], [fx(12, 25), "Navidad"],
+    ].map(([date, name]) => ({ date, name })).sort((a, b) => a.date.localeCompare(b.date));
+    coCache[y] = { list, map: new Map(list.map((x) => [x.date, x.name])) };
+    return coCache[y];
+  }
+  /* Nombre del festivo de Colombia en esa fecha (si está activado y no se marcó para cobrar). */
+  function colombiaHoliday(iso, np) {
+    np = np || (data.settings && data.settings.noPay) || {};
+    if (np.colombia === false) return null;
+    if ((np.colombiaOff || []).includes(iso)) return null;
+    return colombiaHolidays(+iso.slice(0, 4)).map.get(iso) || null;
+  }
+
   function noPayRules(loanSkip) {
     const np = (data.settings && data.settings.noPay) || { weekdays: [0], dates: [] };
     let wd = (np.weekdays || []).filter((x) => x >= 0 && x <= 6);
     if (wd.length >= 7) wd = [];
-    return { weekdays: new Set(wd), dates: new Set([...(np.dates || []).map((x) => x.date || x), ...(loanSkip || [])]) };
+    return { np, weekdays: new Set(wd), dates: new Set([...(np.dates || []).map((x) => x.date || x), ...(loanSkip || [])]) };
   }
-  function isNoPay(iso, rules) { return rules.weekdays.has(parseISO(iso).getDay()) || rules.dates.has(iso); }
+  function isNoPay(iso, rules) { return rules.weekdays.has(parseISO(iso).getDay()) || rules.dates.has(iso) || !!colombiaHoliday(iso, rules.np); }
   function nextPayDay(iso, rules) { let d = iso; for (let k = 0; k < 400 && isNoPay(d, rules); k++) d = addDays(d, 1); return d; }
   function noPayReason(iso, loan) {
     const np = data.settings.noPay || {};
     const g = (np.dates || []).find((x) => (x.date || x) === iso);
     if (g) return g.note || "Festivo / día sin cobro";
+    const co = colombiaHoliday(iso);
+    if (co) return "Festivo: " + co;
     if (loan && (loan.skipDates || []).includes(iso)) return "Día quitado a este cliente";
     if ((np.weekdays || []).includes(parseISO(iso).getDay()) && (np.weekdays || []).length < 7) { const w = DIAS_LARGO[parseISO(iso).getDay()]; return "No se cobra los " + (w.endsWith("s") ? w : w + "s"); }
     return null;
@@ -538,6 +580,12 @@
       const np = data.settings.noPay; np.dates = (np.dates || []).filter((x) => (x.date || x) !== iso);
       np.dates.push({ date: iso, note: note || "" }); np.dates.sort((a, b) => a.date.localeCompare(b.date)); save();
     },
+    setColombia(on) { data.settings.noPay.colombia = !!on; save(); },
+    toggleColombiaDay(iso, collect) {
+      const np = data.settings.noPay; np.colombiaOff = (np.colombiaOff || []).filter((x) => x !== iso);
+      if (collect) np.colombiaOff.push(iso);
+      save();
+    },
     removeNoPayDate(iso) { const np = data.settings.noPay; np.dates = (np.dates || []).filter((x) => (x.date || x) !== iso); save(); },
     addMovement(m) { m.id = uid(); m.createdAt = new Date().toISOString(); data.movements.push(m); save(); return m; },
     deleteMovement(id) { data.movements = data.movements.filter((x) => x.id !== id); save(); },
@@ -569,7 +617,7 @@
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,
     money, moneyShort, parseMoney,
-    FREQ, plan, computeLoan, noPayRules, isNoPay, noPayReason, DIAS_LARGO, applyMora, state, totals, cuotasBetween, upcoming,
+    FREQ, plan, computeLoan, noPayRules, isNoPay, noPayReason, colombiaHolidays, colombiaHoliday, DIAS_LARGO, applyMora, state, totals, cuotasBetween, upcoming,
     period, finance, flow, movements, ops,
   };
 })();

@@ -241,11 +241,16 @@
   }
 
   function noPayText() {
-    const wd = (G.data.settings.noPay.weekdays || []);
+    const np = G.data.settings.noPay;
+    const wd = (np.weekdays || []);
     const names = [[1, "lunes"], [2, "martes"], [3, "miércoles"], [4, "jueves"], [5, "viernes"], [6, "sábados"], [0, "domingos"]].filter(([d]) => wd.includes(d)).map(([, n]) => n);
-    const f = (G.data.settings.noPay.dates || []).filter((x) => (x.date || x) >= G.today()).length;
-    if (!names.length && !f) return "Se cobra todos los días.";
-    return "No se cobra " + (names.length ? "los " + names.join(", ") : "") + (names.length && f ? " ni en " : "") + (f ? plural(f, "festivo", "festivos") : "") + ".";
+    const parts = [];
+    if (names.length) parts.push("los " + names.join(", "));
+    if (np.colombia !== false) parts.push("los festivos de Colombia");
+    const f = (np.dates || []).filter((x) => (x.date || x) >= G.today()).length;
+    if (f) parts.push(plural(f, "día especial", "días especiales"));
+    if (!parts.length) return "Se cobra todos los días.";
+    return "No se cobra " + parts.join(", ").replace(/, ([^,]*)$/, " ni $1") + ".";
   }
 
   // ================= Pantallas =================
@@ -854,6 +859,12 @@
           const fest = (G.data.settings.noPay.dates || []).find((x) => (x.date || x) === sel);
           const wdRule = !fest && (G.data.settings.noPay.weekdays || []).includes(G.parseISO(sel).getDay());
           if (fest) return `<button class="btn btn-soft" id="cal-unfest">${ic("x")}Quitar festivo</button>`;
+          const coName = G.data.settings.noPay.colombia !== false && G.colombiaHolidays(+sel.slice(0, 4)).map.get(sel);
+          if (coName && !wdRule) {
+            const off = (G.data.settings.noPay.colombiaOff || []).includes(sel);
+            return off ? `<p class="hint" style="text-align:center;margin:0">${esc(coName)}: este festivo sí se cobra.</p><button class="btn btn-soft" id="cal-co-on">${ic("calendar")}No cobrar este festivo</button>`
+              : `<button class="btn btn-soft" id="cal-co-off">${ic("dollar")}Cobrar en este festivo</button>`;
+          }
           if (wdRule) return `<p class="hint" style="text-align:center;margin:0">Este día de la semana nunca se cobra. Puedes cambiarlo en <a class="h-link" style="padding:0" data-go="ajustes" data-p='{"sec":"nopay"}'>Configuración</a>.</p>`;
           return `<button class="btn btn-soft" id="cal-fest">${ic("calendar")}Marcar como festivo / sin cobro</button>`;
         })()}
@@ -870,6 +881,12 @@
             $("#fe-ok", sh).onclick = () => { G.ops.addNoPayDate(sel, $("#fe-note", sh).value.trim() || "Festivo"); closeLayer(); G.applyMora(); toast("Festivo agregado"); refresh(); };
           });
         };
+        const coOff = $("#cal-co-off", v);
+        if (coOff) coOff.onclick = async () => {
+          if (await confirmBox("¿Cobrar en este festivo?", G.fmtDateLong(sel) + " será día de cobro normal. Las cuotas que se habían corrido regresan a esa fecha.", "Cobrar este día")) { G.ops.toggleColombiaDay(sel, true); toast("Ese festivo ahora se cobra"); refresh(); }
+        };
+        const coOn = $("#cal-co-on", v);
+        if (coOn) coOn.onclick = () => { G.ops.toggleColombiaDay(sel, false); G.applyMora(); toast("Festivo sin cobro"); refresh(); };
         const ub = $("#cal-unfest", v);
         if (ub) ub.onclick = async () => {
           if (await confirmBox("¿Quitar festivo?", G.fmtDateLong(sel) + " volverá a ser día de cobro y las cuotas que se habían corrido regresan a esa fecha.", "Quitar festivo")) {
@@ -1068,8 +1085,18 @@
           <p class="hint" style="margin:0">Días en que nadie paga. Las cuotas que caigan en esos días se corren al siguiente día de cobro y no cuentan como atraso.</p>
           <div class="chips" style="flex-wrap:wrap;margin:0;padding:0">${[[1, "Lun"], [2, "Mar"], [3, "Mié"], [4, "Jue"], [5, "Vie"], [6, "Sáb"], [0, "Dom"]].map(([d, n]) => `<button type="button" class="chip ${G.data.settings.noPay.weekdays.includes(d) ? "active" : ""}" data-wd="${d}">${n}</button>`).join("")}</div>
           <p class="hint" style="margin:0">${noPayText()}</p>
-          <b style="font-size:15px">Festivos y días especiales</b>
-          ${(G.data.settings.noPay.dates || []).filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).length ? `<div class="list">${G.data.settings.noPay.dates.filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).map((x) => `<div class="item"><span class="mov-ico c-violet">${ic("calendar")}</span><div class="grow"><div class="name" style="font-size:15px">${G.fmtDateLong(x.date)}</div><div class="sub">${esc(x.note || "Sin cobro")}</div></div><button class="icon-btn" data-rmnp="${x.date}" aria-label="Quitar">${ic("x")}</button></div>`).join("")}</div>` : `<p class="hint" style="margin:0">No has agregado festivos.</p>`}
+          <div class="between"><div><b style="font-size:15px">Festivos de Colombia</b><div class="small muted">Se calculan solos cada año, según la ley.</div></div>
+            <label class="switch"><input type="checkbox" id="np-co" ${G.data.settings.noPay.colombia !== false ? "checked" : ""}><span></span></label></div>
+          ${G.data.settings.noPay.colombia !== false ? (() => {
+            const y = +G.today().slice(0, 4);
+            const up = [...G.colombiaHolidays(y).list, ...G.colombiaHolidays(y + 1).list].filter((h) => h.date >= G.today());
+            const show = up.slice(0, 4);
+            return `<div class="list">${show.map((h) => { const off = (G.data.settings.noPay.colombiaOff || []).includes(h.date);
+              return `<div class="item"><span class="mov-ico ${off ? "c-blue" : "c-violet"}">${ic("calendar")}</span><div class="grow"><div class="name" style="font-size:15px">${esc(h.name)}</div><div class="sub">${G.fmtDateLong(h.date)}${off ? " · se cobra" : ""}</div></div></div>`; }).join("")}</div>
+              <button type="button" class="h-link" style="align-self:flex-start" id="np-co-all">Ver todos los festivos (${y} y ${y + 1})</button>`;
+          })() : ""}
+          <b style="font-size:15px">Otros días especiales</b>
+          ${(G.data.settings.noPay.dates || []).filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).length ? `<div class="list">${G.data.settings.noPay.dates.filter((x) => (x.date || x) >= G.addDays(G.today(), -30)).map((x) => `<div class="item"><span class="mov-ico c-violet">${ic("calendar")}</span><div class="grow"><div class="name" style="font-size:15px">${G.fmtDateLong(x.date)}</div><div class="sub">${esc(x.note || "Sin cobro")}</div></div><button class="icon-btn" data-rmnp="${x.date}" aria-label="Quitar">${ic("x")}</button></div>`).join("")}</div>` : `<p class="hint" style="margin:0">No has agregado días especiales.</p>`}
           <div class="field field-float" style="min-height:56px">${ic("calendar")}<label><span>Fecha del festivo o día sin cobro</span><input id="np-date" type="date"></label></div>
           <div class="field" style="min-height:56px">${ic("note")}<input id="np-note" maxlength="40" placeholder="Motivo (opcional): ej. Festivo"></div>
           <button class="btn btn-soft" id="np-add">${ic("plus")}Agregar día sin cobro</button></div>
@@ -1117,6 +1144,13 @@
           G.ops.setNoPayWeekdays(wd); G.applyMora(); refresh();
         });
         $$("[data-rmnp]", v).forEach((b) => b.onclick = () => { G.ops.removeNoPayDate(b.dataset.rmnp); refresh(); });
+        $("#np-co", v).onchange = (e) => { G.ops.setColombia(e.target.checked); G.applyMora(); toast(e.target.checked ? "Festivos de Colombia activados" : "Festivos de Colombia desactivados"); refresh(); };
+        const allBtn = $("#np-co-all", v);
+        if (allBtn) allBtn.onclick = () => {
+          const y = +G.today().slice(0, 4); const off = G.data.settings.noPay.colombiaOff || [];
+          const block = (yy) => `<h3 style="margin:14px 0 8px;font-size:17px">${yy}</h3><div class="list">${G.colombiaHolidays(yy).list.map((h) => `<div class="item" style="padding:10px 12px"><div class="grow"><div class="name" style="font-size:15px;${h.date < G.today() ? "color:#8a97ad" : ""}">${esc(h.name)}</div><div class="sub">${G.fmtDateLong(h.date)}${off.includes(h.date) ? " · se cobra" : ""}</div></div></div>`).join("")}</div>`;
+          sheet("Festivos de Colombia", `<p class="hint" style="margin:0">Ese día no se cobra y las cuotas se corren al siguiente día de cobro. Para cobrar en un festivo, tócalo en el Calendario.</p>${block(y)}${block(y + 1)}`);
+        };
         $("#np-add", v).onclick = () => {
           const d = $("#np-date", v).value; if (!d) { toast("Elige la fecha."); return; }
           G.ops.addNoPayDate(d, $("#np-note", v).value.trim()); toast("Día sin cobro agregado"); refresh();
