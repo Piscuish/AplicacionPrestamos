@@ -1079,7 +1079,7 @@
           <div class="kv"><div class="between"><span>Versión instalada</span><span id="up-cur">${esc(Update.current.version)}</span></div></div>
           <div id="up-box"></div>
           <button class="btn btn-primary" id="up-check">${ic("search")}Buscar actualizaciones</button>
-          <p class="hint" style="margin:0">La app busca actualizaciones sola cada vez que la abres. Las actualizaciones normales se descargan y aplican solas, sin instalar APK; solo los cambios grandes (ícono, permisos) piden instalar APK. Al actualizar se conservan todos tus clientes, préstamos y pagos; aun así, te recomendamos guardar una copia antes.</p></div>
+          <p class="hint" style="margin:0">La app busca actualizaciones sola cada vez que la abres. Las actualizaciones normales se descargan y aplican solas, sin instalar APK; solo los cambios de permisos o complementos piden instalar APK; el ícono se actualiza instalando el APK cuando quieras. Al actualizar se conservan todos tus clientes, préstamos y pagos; aun así, te recomendamos guardar una copia antes.</p></div>
 
         <div class="setting-card" id="sec-nopay"><h3>${ic("calendar")}Días sin cobro</h3>
           <p class="hint" style="margin:0">Días en que nadie paga. Las cuotas que caigan en esos días se corren al siguiente día de cobro y no cuentan como atraso.</p>
@@ -1195,7 +1195,15 @@
             $("#up-apk-direct", v).onclick = () => openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
             return;
           }
-          if (!r.release) { upBox.innerHTML = `<div class="total-row" style="background:#e5f6ec;color:#11743a">✓ Tienes la última versión.</div>`; return; }
+          if (!r.release) {
+            const L = Update.latest;
+            const oldBase = L && L.build && Update.current.nativeBuild && L.build > Update.current.nativeBuild;
+            upBox.innerHTML = `<div class="total-row" style="background:#e5f6ec;color:#11743a">✓ Tienes la última versión.</div>` + (oldBase ? `
+              <button class="btn btn-soft" id="up-apk-base" style="font-size:15.5px">${ic("download")}Actualizar mediante APK (opcional)</button>
+              <p class="hint" style="margin:0">La app ya está al día, pero el APK instalado es la ${esc(String(Update.current.nativeBuild))}. Instalar el APK ${esc(L.version)} actualiza el ícono y la base de la app. Instálalo encima, sin desinstalar: tus datos se conservan.</p>` : "");
+            const bb = $("#up-apk-base", v); if (bb) bb.onclick = () => openExternal(L.apkUrl || L.page || `https://github.com/${GITHUB_REPO}/releases/latest`);
+            return;
+          }
           const rel = r.release;
           if (rel.live) {
             upBox.innerHTML = `<div class="kv" style="padding:12px 14px;border-color:#b9d0f7;background:#f4f8ff">
@@ -1429,7 +1437,9 @@
         this.available = { version: r.version, build: r.build, date: r.date || G.today(), notes: this.cleanNotes(r.notes), apkUrl: r.apkUrl, size: r.size, page: r.page, live, webUrl: r.web && r.web.url, webSha256: r.web && r.web.sha256 };
         return { release: this.available };
       }
-      this.available = null; return {};
+      this.available = null;
+      this.latest = r;
+      return {};
     },
   };
 
