@@ -612,7 +612,32 @@
     data = normalize(s.data); save(); return true;
   }
 
+  /* Logo por defecto de la app (monedas con flecha). Se usa cuando la empresa no sube uno. */
+  const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs>
+    <linearGradient id="bgG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a4a9a"/><stop offset="1" stop-color="#071d42"/></linearGradient>
+    <linearGradient id="swG" x1="0" x2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7fb2ff"/></linearGradient>
+    <linearGradient id="coinG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dbe8ff"/></linearGradient>
+  </defs><rect width="1024" height="1024" fill="url(#bgG)"/><g transform="translate(505.1 415.4) scale(1.38)">    <g fill="url(#coinG)" stroke="#0b2a5b" stroke-width="14">
+      <g transform="translate(-95 40)">
+        <path d="M-110 40v40a110 38 0 0 0 220 0v-40"/><ellipse cy="40" rx="110" ry="38"/>
+        <path d="M-110 -10v50a110 38 0 0 0 220 0v-50"/><ellipse cy="-10" rx="110" ry="38"/>
+      </g>
+      <g transform="translate(95 -10)">
+        <path d="M-110 70v40a110 38 0 0 0 220 0v-40"/><ellipse cy="70" rx="110" ry="38"/>
+        <path d="M-110 20v50a110 38 0 0 0 220 0v-50"/><ellipse cy="20" rx="110" ry="38"/>
+        <path d="M-110 -30v50a110 38 0 0 0 220 0v-50"/><ellipse cy="-30" rx="110" ry="38"/>
+        <path d="M-110 -80v50a110 38 0 0 0 220 0v-50"/><ellipse cy="-80" rx="110" ry="38"/>
+      </g>
+    </g>
+    <path d="M-290 175 C-120 290 190 250 300 -40 C210 150 -40 230 -270 150 Z" fill="url(#swG)"/>
+    <path d="M300 -40 l-62 18 l40 48 z" fill="#7fb2ff"/>
+</g></svg>`;
+  let logoN = 0;
+  function logoSvg() { const k = "L" + (++logoN); return LOGO_SVG.replace(/(bgG|swG|coinG)/g, "$1" + k); }
+  const LOGO_URL = "img/logo.svg";
+
   window.GP = {
+    logoSvg, LOGO_URL,
     get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot, versionInfo, mirrorNow, snapshot,
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,

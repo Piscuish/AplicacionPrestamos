@@ -57,15 +57,11 @@
   });
 
   // Logo por defecto (cuando la empresa no sube uno)
-  const DEFAULT_LOGO =
-    '<svg viewBox="0 0 100 100"><defs><linearGradient id="dl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#123a7a"/><stop offset="1" stop-color="#071d42"/></linearGradient></defs>' +
-    '<rect width="100" height="100" rx="22" fill="url(#dl)"/>' +
-    '<g fill="#fff"><rect x="26" y="50" width="11" height="22" rx="2.5"/><rect x="42" y="38" width="11" height="34" rx="2.5"/><rect x="58" y="26" width="11" height="46" rx="2.5"/></g>' +
-    '<path d="M18 74c18 10 50 8 64-22-10 18-36 26-60 18Z" fill="#7fb2ff"/></svg>';
+
   function renderLogo(el, dataUrl) {
     el.innerHTML = "";
     if (dataUrl) { const img = new Image(); img.alt = "Logo"; img.src = dataUrl; el.appendChild(img); }
-    else el.innerHTML = DEFAULT_LOGO;
+    else el.innerHTML = window.GP.logoSvg();
   }
 
   // ---------- 1. Bienvenida ----------
