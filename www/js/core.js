@@ -614,6 +614,30 @@
     data = normalize(s.data); save(); return true;
   }
 
+  /* ----- Huella / biometría (complemento NativeBiometric) ----- */
+  const BIO_KEY = "gp.bio.v1";
+  window.Bio = {
+    plugin() { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.NativeBiometric; },
+    enabled() { try { return !!(JSON.parse(localStorage.getItem(BIO_KEY)) || {}).enabled; } catch (e) { return false; } },
+    setEnabled(on) { if (on) localStorage.setItem(BIO_KEY, JSON.stringify({ enabled: true, since: today() })); else localStorage.removeItem(BIO_KEY); },
+    async available() {
+      const B = this.plugin(); if (!B) return false;
+      try { const r = await B.isAvailable({ useFallback: false }); return !!(r && r.isAvailable); } catch (e) { return false; }
+    },
+    async verify(title, subtitle) {
+      const B = this.plugin(); if (!B) return { ok: false, error: "La huella no está disponible en este celular." };
+      try {
+        await B.verifyIdentity({ title, subtitle, reason: "Confirma tu identidad", description: "Pon tu dedo en el lector de huella", negativeButtonText: "Usar contraseña", maxAttempts: 5 });
+        return { ok: true };
+      } catch (e) {
+        const m = String((e && (e.message || e.code)) || e || "");
+        if (/cancel|negative|user/i.test(m)) return { ok: false };
+        if (/lockout|too many/i.test(m)) return { ok: false, error: "Demasiados intentos con huella. Usa tu contraseña." };
+        return { ok: false, error: "No se reconoció la huella. Intenta de nuevo o usa tu contraseña." };
+      }
+    },
+  };
+
   window.GP = {
     get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot, versionInfo, mirrorNow, snapshot,
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,

@@ -188,13 +188,30 @@
 
   // ---------- 3. Inicio de sesión ----------
   let failed = 0;
-  function openLogin(config) {
+  let bioAutoDone = false;
+  function openLogin(config, opts) {
     renderLogo($("#login-logo"), config.logo);
     $("#login-company").textContent = config.company;
     $("#login-user").value = "";
     $("#login-pass").value = "";
     $("#login-error").textContent = "";
     show("login");
+    setupBio(config, opts && opts.autoBio);
+  }
+
+  /* ----- Huella: solo si se activó en Configuración y el celular la tiene ----- */
+  async function setupBio(config, auto) {
+    const btn = $("#btn-bio"); btn.hidden = true;
+    if (!window.Bio || !window.Bio.enabled()) return;
+    if (!(await window.Bio.available())) return;
+    btn.hidden = false;
+    btn.onclick = () => tryBio(config);
+    if (auto && !bioAutoDone) { bioAutoDone = true; setTimeout(() => { if (current === "login") tryBio(config); }, 450); }
+  }
+  async function tryBio(config) {
+    const r = await window.Bio.verify("Iniciar sesión", config.company);
+    if (r.ok) { failed = 0; openHome(config); }
+    else if (r.error) $("#login-error").textContent = r.error;
   }
 
   $("#login-form").addEventListener("submit", async (e) => {
@@ -248,7 +265,7 @@
   const start = (r) => {
     if (r === "reloading") { setTimeout(() => start(), 6000); return; } // se está aplicando una actualización en vivo
     const config = store.get();
-    if (config && config.passwordHash) openLogin(config);
+    if (config && config.passwordHash) openLogin(config, { autoBio: true });
     else show("welcome");
     // La app abrió bien: se le avisa al sistema de actualizaciones en vivo.
     // Si una versión nueva tuviera un error y no llegara aquí, se vuelve sola a la anterior.

@@ -146,7 +146,7 @@
   let stack = [];
   let config = null;
   let onLogout = null;
-  const TABS = ["inicio", "clientes", "prestamos", "calendario"];
+  const TABS = ["inicio", "clientes", "prestamos", "finanzas", "calendario"]; // calendario: muestra la barra, pero no tiene botón
   const ROOTS = ["inicio", "clientes", "prestamos", "calendario", "finanzas", "movimientos", "ajustes"];
 
   function go(name, params, replace) {
@@ -265,7 +265,7 @@
     return {
       html: appbar({
         brand: `<button class="appbar-brand brand-btn" data-go="ajustes" aria-label="Configuración"><div class="mini-logo">${logoHtml()}</div><div style="min-width:0;text-align:left"><h1>${esc(config.company)}</h1><p>Gestión de Préstamos</p></div></button>`,
-        right: `<button class="icon-btn" data-go="ajustes" aria-label="Configuración">${ic("settings")}</button>`,
+        right: `<button class="icon-btn" data-go="calendario" aria-label="Calendario de cobros">${ic("calendar")}</button><button class="icon-btn" data-go="ajustes" aria-label="Configuración">${ic("settings")}</button>`,
       }) + `<main class="body">
         ${Update.liveReady ? `<button class="update-banner" id="live-apply">${ic("repeat")}<div><b>Actualización lista (${esc(Update.liveReady.version)})</b><span>Se aplica sola la próxima vez que abras la app. Toca para aplicarla ahora.</span></div>${ic("right")}</button>`
           : Update.available ? `<button class="update-banner" data-go="ajustes">${ic("download")}<div><b>Nueva versión disponible (${esc(Update.available.version)})</b><span>Toca para actualizar. Tus datos no se borran.</span></div>${ic("right")}</button>` : ""}
@@ -282,7 +282,7 @@
           <button class="tile" data-go="prestamos" data-p='{"f":"vencido"}'><span class="t-ico c-red">${ic("alert")}</span><div><div class="t-lbl">Pagos vencidos</div><div class="t-val ${T.overdueAmount ? "red" : ""}">${money(T.overdueAmount)}</div></div></button>
         </div>
         ${empty ? `<div class="empty">${ic("users")}<p>Aún no tienes clientes.<br>Empieza registrando el primero.</p><button class="btn btn-primary" ${goAttr("clienteForm", {})}>${ic("plus")}Nuevo cliente</button></div>` : `
-        <div class="between"><h2 class="h2">Próximos pagos</h2><button class="h-link" data-tab="calendario">Ver todos</button></div>
+        <div class="between"><h2 class="h2">Próximos pagos</h2><button class="h-link" data-go="calendario">Ver todos</button></div>
         ${up.length ? `<div class="list">${up.map(({ st, c }) => { const cl = client(st.loan.clientId); const late = c.overdue; const today = c.date === G.today();
           return `<button class="item" ${goAttr("pago", { loanId: st.loan.id })}>${avatar(cl)}<div class="grow"><div class="name">${esc(cl ? cl.name : "")}</div><div class="sub">#${st.loan.num} · Cuota ${c.n} de ${st.loan.count}</div></div>
           <div class="right"><span class="badge ${late ? "b-red" : today ? "b-green" : "b-blue"}">${late ? "Vencida " + G.fmtDateShort(c.date) : G.relDay(c.date)}</span><div class="amount" style="margin-top:4px">${money(c.remaining)}</div></div></button>`; }).join("")}</div>`
@@ -401,7 +401,7 @@
       content = x.loans.length ? `<div class="list">${x.loans.slice().reverse().map((st) => loanRow(st, true)).join("")}</div>` : `<div class="empty">${ic("layers")}<p>Este cliente no tiene préstamos.</p></div>`;
     } else {
       content = pays.length ? `<div class="list">${pays.map((pp) => { const st = G.state().byLoan.get(pp.loanId);
-        return pp.amount > 0 ? `<button class="item" ${goAttr("prestamo", { id: pp.loanId })}><span class="mov-ico c-green">${ic("down")}</span><div class="grow"><div class="name" style="font-size:15px">Pago · #${st.loan.num}</div><div class="sub">${G.fmtDate(pp.date)} · ${esc(pp.method || "")}</div></div><div class="amount green">+${money(pp.amount)}</div></button>`
+        return pp.amount > 0 ? `<button class="item" data-cpay="${pp.id}"><span class="mov-ico c-green">${ic("down")}</span><div class="grow"><div class="name" style="font-size:15px">Pago · #${st.loan.num}</div><div class="sub">${G.fmtDate(pp.date)} · ${esc(pp.method || "")}</div></div><div class="right"><div class="amount green">+${money(pp.amount)}</div><div class="sub" style="justify-content:flex-end">${ic("file")}Comprobante</div></div></button>`
         : `<button class="item" ${goAttr("prestamo", { id: pp.loanId })}><span class="mov-ico c-red">${ic("x")}</span><div class="grow"><div class="name" style="font-size:15px">No pagó · #${st.loan.num}</div><div class="sub">${G.fmtDate(pp.date)}${pp.note ? " · " + esc(pp.note) : ""}</div></div></button>`; }).join("")}</div>`
         : `<div class="empty">${ic("coins")}<p>Aún no hay pagos registrados.</p></div>`;
     }
@@ -409,10 +409,11 @@
       html: appbar({ back: true, title: "Cliente", right: `<button class="icon-btn" ${goAttr("clienteForm", { id: c.id })} aria-label="Editar">${ic("edit")}</button><button class="icon-btn" id="cl-more" aria-label="Más">${ic("more")}</button>` }) + `<main class="body pad-bottom">
         <div class="profile">${avatar(c, "lg")}<div style="min-width:0"><h2>${esc(c.name)}</h2>
           ${c.phone ? `<div class="line">${ic("phone")}${esc(c.phone)}</div>` : ""}${c.doc ? `<div class="line">${ic("idcard")}C.C. ${esc(c.doc)}</div>` : ""}${c.address ? `<div class="line">${ic("pin")}${esc(c.address)}</div>` : ""}</div></div>
-        <div class="actions3">
+        <div class="actions3 four">
           <button class="act" id="a-call" ${c.phone ? "" : "disabled"}>${ic("phone")}Llamar</button>
           <button class="act wa" id="a-wa" ${c.phone ? "" : "disabled"}>${ic("whatsapp")}WhatsApp</button>
-          <button class="act" id="a-map" ${c.address ? "" : "disabled"}>${ic("pin")}Ubicación</button></div>
+          <button class="act" id="a-map" ${c.address ? "" : "disabled"}>${ic("pin")}Ubicación</button>
+          <button class="act" id="a-ec" ${x.loans.length ? "" : "disabled"}>${ic("file")}Estado</button></div>
         <div class="chips">${chip("resumen", "Resumen")}${chip("prestamos", `Préstamos (${x.loans.length})`)}${chip("pagos", "Pagos")}</div>
         ${content}
         <div style="position:fixed;left:16px;right:16px;bottom:calc(16px + var(--safe-bottom));z-index:7"><button class="btn btn-primary" ${goAttr("prestamoForm", { clientId: c.id })}>${ic("plus")}Nuevo préstamo</button></div>
@@ -424,7 +425,18 @@
           $("#a-wa", v).onclick = () => openExternal("https://wa.me/" + waNumber(c.phone));
         }
         if (c.address) $("#a-map", v).onclick = () => openExternal("https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(c.address));
+        const ec = $("#a-ec", v); if (ec && x.loans.length) ec.onclick = () => go("estado", { id: c.id });
+        $$("[data-cpay]", v).forEach((b) => b.onclick = () => {
+          const pay = G.data.payments.find((q) => q.id === b.dataset.cpay); const lst = G.state().byLoan.get(pay.loanId);
+          sheet(`Pago de ${money(pay.amount)} · ${G.fmtDate(pay.date)}`, `
+            <button class="sheet-opt" ${goAttr("pagoOk", { id: pay.id, view: true })}><span class="t-ico c-blue">${ic("file")}</span><div><b>Ver comprobante</b></div></button>
+            <button class="sheet-opt" id="so-csend"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Enviar comprobante</b><span>Por WhatsApp u otra app</span></div></button>
+            <button class="sheet-opt" ${goAttr("prestamo", { id: pay.loanId })}><span class="t-ico c-violet">${ic("layers")}</span><div><b>Ver préstamo #${lst ? lst.loan.num : ""}</b></div></button>`, (sh) => {
+            $("#so-csend", sh).onclick = () => { closeLayer(); sendReceipt(pay.id); };
+          });
+        });
         $("#cl-more", v).onclick = () => sheet(null, `
+          ${x.loans.length ? `<button class="sheet-opt" ${goAttr("estado", { id: c.id })}><span class="t-ico c-green">${ic("file")}</span><div><b>Estado de cuenta</b><span>Ver y enviar por WhatsApp</span></div></button>` : ""}
           <button class="sheet-opt" ${goAttr("clienteForm", { id: c.id })}><span class="t-ico c-blue">${ic("edit")}</span><div><b>Editar cliente</b></div></button>
           <button class="sheet-opt" id="so-del"><span class="t-ico c-red">${ic("trash")}</span><div><b>Eliminar cliente</b><span>Solo si no tiene préstamos</span></div></button>`,
           (s) => { $("#so-del", s).onclick = () => { closeLayer(); deleteClient(c.id); }; });
@@ -728,89 +740,238 @@
     const part = st.payParts.find((x) => x.id === payId) || { cuotas: [], balanceAfter: st.balance };
     const cl = client(st.loan.clientId);
     const cu = part.cuotas.length ? (part.cuotas.length === 1 ? part.cuotas[0] : part.cuotas[0] + " a " + part.cuotas[part.cuotas.length - 1]) + " de " + st.loan.count : "-";
-    return { pay, st, cl, cu, balance: part.balanceAfter };
+    const idx = st.payParts.findIndex((x) => x.id === payId) + 1;
+    return { pay, st, cl, cu, balance: part.balanceAfter, number: st.loan.num + "-" + String(Math.max(1, idx)).padStart(2, "0") };
+  }
+
+  // ================= Documentos en imagen (comprobante y estado de cuenta) =================
+  const DOC_W = 1000;
+  function docCanvas() {
+    const c = document.createElement("canvas"); c.width = DOC_W; c.height = 3600;
+    const x = c.getContext("2d");
+    const font = (w, s) => `${w} ${s}px system-ui, -apple-system, Roboto, "Segoe UI", Arial, sans-serif`;
+    const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); };
+    const text = (t, X, Y, f, color, align, max) => { x.font = f; x.fillStyle = color; x.textAlign = align || "left"; x.fillText(max ? fit(x, String(t), max) : String(t), X, Y); x.textAlign = "left"; };
+    return { c, x, font, rr, text };
+  }
+  function docHeader(d, title, number, dateText) {
+    const { x, rr, text, font } = d; const W = DOC_W;
+    x.fillStyle = "#eef2f8"; x.fillRect(0, 0, W, 3600);
+    const g = x.createLinearGradient(0, 0, W, 330); g.addColorStop(0, "#1a4a9a"); g.addColorStop(1, "#071d42");
+    x.fillStyle = g; x.fillRect(0, 0, W, 330);
+    // decoración
+    x.fillStyle = "rgba(255,255,255,.05)"; x.beginPath(); x.arc(W - 60, 40, 220, 0, 7); x.fill(); x.beginPath(); x.arc(W - 220, 330, 140, 0, 7); x.fill();
+    // logo
+    const logoImg = $("#rc-logo-cache");
+    x.save(); rr(56, 52, 128, 128, 30); x.fillStyle = "#fff"; x.fill(); x.clip();
+    if (logoImg && logoImg.complete && logoImg.naturalWidth) {
+      const s = Math.min(116 / logoImg.naturalWidth, 116 / logoImg.naturalHeight); const w = logoImg.naturalWidth * s, h = logoImg.naturalHeight * s;
+      x.drawImage(logoImg, 56 + (128 - w) / 2, 52 + (128 - h) / 2, w, h);
+    } else {
+      x.fillStyle = "#123a7a"; x.fillRect(56, 52, 128, 128); x.fillStyle = "#fff";
+      [[88, 118, 15, 34], [111, 101, 15, 51], [134, 84, 15, 68]].forEach(([a, b, w, h]) => x.fillRect(a, b, w, h));
+    }
+    x.restore();
+    text(config.company, 210, 112, font(800, 46), "#ffffff", "left", 560);
+    text("Gestión de Préstamos", 210, 160, font(400, 28), "rgba(255,255,255,.75)");
+    text(title, 56, 262, font(800, 30), "#9cc2ff");
+    if (number) text("N.º " + number, W - 56, 262, font(700, 30), "#ffffff", "right");
+    text(dateText, 56, 302, font(400, 26), "rgba(255,255,255,.75)");
+    return 330;
+  }
+  function docCard(d, y, h) { const { x, rr } = d; x.save(); x.shadowColor = "rgba(15,28,51,.08)"; x.shadowBlur = 24; x.shadowOffsetY = 6; rr(40, y, DOC_W - 80, h, 28); x.fillStyle = "#fff"; x.fill(); x.restore(); }
+  function docBar(d, X, Y, w, ratio, color) {
+    const { x, rr } = d; rr(X, Y, w, 18, 9); x.fillStyle = "#e3e9f2"; x.fill();
+    if (ratio > 0) { rr(X, Y, Math.max(18, w * Math.min(1, ratio)), 18, 9); x.fillStyle = color || "#19a04a"; x.fill(); }
+  }
+  function docFooter(d, y, line) {
+    const { x, text, font } = d; const W = DOC_W;
+    x.strokeStyle = "#c5cfdd"; x.setLineDash([14, 12]); x.lineWidth = 3; x.beginPath(); x.moveTo(60, y); x.lineTo(W - 60, y); x.stroke(); x.setLineDash([]);
+    if (line) text(line, W / 2, y + 70, font(750, 38), "#1d5bd8", "center");
+    text("Generado el " + G.fmtDate(G.today()) + " · " + config.company, W / 2, y + (line ? 124 : 60), font(400, 24), "#8a97ad", "center", W - 120);
+    return y + (line ? 170 : 110);
+  }
+  function docCrop(d, h) { const out = document.createElement("canvas"); out.width = DOC_W; out.height = Math.ceil(h); out.getContext("2d").drawImage(d.c, 0, 0); return out; }
+  function kvRows(d, y, rows, X, w) {
+    const { x, text, font } = d;
+    rows.forEach(([k, v, color], i) => {
+      if (i) { x.fillStyle = "#edf1f7"; x.fillRect(X, y - 4, w, 2); }
+      text(k, X, y + 44, font(400, 30), "#4a5872");
+      text(v, X + w, y + 44, font(700, 30), color || "#0f1c33", "right", w * 0.62);
+      y += 72;
+    });
+    return y;
   }
 
   function receiptCanvas(payId) {
-    const { pay, st, cl, cu, balance } = receiptInfo(payId);
-    const W = 900, H = 1180, c = document.createElement("canvas"); c.width = W; c.height = H;
-    const x = c.getContext("2d");
-    const font = (w, s) => `${w} ${s}px system-ui, -apple-system, Roboto, Arial, sans-serif`;
-    const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); };
-    x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H);
-    // logo
-    const logoImg = $("#rc-logo-cache");
-    x.save(); rr(60, 56, 120, 120, 26); x.clip();
-    if (logoImg && logoImg.complete && logoImg.naturalWidth) {
-      x.fillStyle = "#fff"; x.fillRect(60, 56, 120, 120);
-      const s = Math.min(120 / logoImg.naturalWidth, 120 / logoImg.naturalHeight); const w = logoImg.naturalWidth * s, h = logoImg.naturalHeight * s;
-      x.drawImage(logoImg, 60 + (120 - w) / 2, 56 + (120 - h) / 2, w, h);
-    } else {
-      x.fillStyle = "#123a7a"; x.fillRect(60, 56, 120, 120); x.fillStyle = "#fff";
-      [[90, 116, 14, 32], [112, 100, 14, 48], [134, 84, 14, 64]].forEach(([a, b, w, h]) => x.fillRect(a, b, w, h));
-    }
-    x.restore();
-    x.fillStyle = "#0f1c33"; x.font = font(800, 44); x.fillText(fit(x, config.company, 640), 210, 112);
-    x.fillStyle = "#4a5872"; x.font = font(400, 30); x.fillText("Gestión de Préstamos", 210, 154);
-    // banda
-    x.fillStyle = "#0b2a5b"; rr(60, 220, W - 120, 92, 18); x.fill();
-    x.fillStyle = "#fff"; x.font = font(750, 40); x.textAlign = "center"; x.fillText("Comprobante de Pago", W / 2, 280); x.textAlign = "left";
-    x.fillStyle = "#19a04a"; x.beginPath(); x.arc(W - 90, 230, 36, 0, 7); x.fill();
-    x.strokeStyle = "#fff"; x.lineWidth = 8; x.lineCap = "round"; x.lineJoin = "round"; x.beginPath(); x.moveTo(W - 106, 230); x.lineTo(W - 94, 242); x.lineTo(W - 72, 218); x.stroke();
-    // filas
-    const rows = [["Cliente:", cl ? cl.name : ""], cl && cl.doc ? ["Documento:", cl.doc] : null, ["Préstamo:", "#" + st.loan.num], ["Cuota:", cu],
-      ["Monto pagado:", money(pay.amount), true], ["Fecha de pago:", G.fmtDate(pay.date)], ["Método de pago:", pay.method || "-"], ["Saldo pendiente:", money(balance)]].filter(Boolean);
-    let y = 350;
-    for (const [k, val, hl] of rows) {
-      if (hl) { x.fillStyle = "#dbe8fd"; x.fillRect(60, y, W - 120, 86); }
-      x.fillStyle = "#0f1c33"; x.font = font(hl ? 750 : 400, hl ? 36 : 32); x.fillText(k, 84, y + 54);
-      x.textAlign = "right"; x.font = font(hl ? 800 : 600, hl ? 40 : 32); x.fillText(fit(x, String(val), 460), W - 84, y + 55); x.textAlign = "left";
-      y += 86; x.fillStyle = "#e3e9f2"; x.fillRect(60, y - 1, W - 120, 2);
-    }
-    if (pay.note) { x.fillStyle = "#4a5872"; x.font = font(400, 28); x.fillText(fit(x, "Nota: " + pay.note, W - 168), 84, y + 50); y += 70; }
-    y += 30;
-    x.fillStyle = "#e6efff"; rr(60, y, W - 120, 100, 20); x.fill();
-    x.fillStyle = "#1d5bd8"; x.font = font("italic 750", 40); x.textAlign = "center"; x.fillText("¡Gracias por tu pago!", W / 2, y + 63);
-    x.fillStyle = "#8a97ad"; x.font = font(400, 24); x.fillText("Generado el " + G.fmtDate(G.today()) + " · " + config.company, W / 2, y + 160); x.textAlign = "left";
-    // recortar alto
-    const out = document.createElement("canvas"); out.width = W; out.height = Math.min(H, y + 200);
-    out.getContext("2d").drawImage(c, 0, 0); return out;
+    const { pay, st, cl, cu, balance, number } = receiptInfo(payId);
+    const d = docCanvas(); const { x, text, font, rr } = d; const W = DOC_W;
+    let y = docHeader(d, "COMPROBANTE DE PAGO", number, G.fmtDateLong(pay.date));
+    // monto
+    y += 36; docCard(d, y, 250);
+    x.fillStyle = "#19a04a"; x.beginPath(); x.arc(W / 2, y + 2, 46, 0, 7); x.fill();
+    x.strokeStyle = "#fff"; x.lineWidth = 10; x.lineCap = "round"; x.lineJoin = "round"; x.beginPath(); x.moveTo(W / 2 - 20, y + 2); x.lineTo(W / 2 - 4, y + 18); x.lineTo(W / 2 + 22, y - 12); x.stroke();
+    text("Pago recibido", W / 2, y + 96, font(600, 30), "#4a5872", "center");
+    text(money(pay.amount), W / 2, y + 190, font(800, 84), "#0f1c33", "center", W - 140);
+    y += 250 + 28;
+    // datos
+    const rows = [["Cliente", cl ? cl.name : ""]];
+    if (cl && cl.doc) rows.push(["Documento", "C.C. " + cl.doc]);
+    rows.push(["Préstamo", "#" + st.loan.num], ["Cuota", cu], ["Método de pago", pay.method || "-"]);
+    docCard(d, y, rows.length * 72 + 40);
+    y = kvRows(d, y + 20, rows, 84, W - 168) + 20 + 28;
+    // progreso
+    const totalDue = st.totalDue; const paidAfter = Math.max(0, totalDue - balance);
+    docCard(d, y, 230);
+    text("Estado del préstamo", 84, y + 62, font(750, 32), "#0f1c33");
+    text(Math.round(paidAfter / totalDue * 100) + "% pagado", W - 84, y + 62, font(600, 28), "#19a04a", "right");
+    docBar(d, 84, y + 92, W - 168, paidAfter / totalDue);
+    text("Pagado: " + money(paidAfter), 84, y + 164, font(400, 28), "#4a5872");
+    text("Total: " + money(totalDue), W - 84, y + 164, font(400, 28), "#4a5872", "right");
+    y += 230 + 20;
+    x.save(); rr(40, y, W - 80, 96, 24); x.fillStyle = balance ? "#fff3e6" : "#e5f6ec"; x.fill(); x.restore();
+    text(balance ? "Saldo pendiente" : "Préstamo pagado completo", 84, y + 60, font(700, 32), balance ? "#a14d00" : "#11743a");
+    if (balance) text(money(balance), W - 84, y + 61, font(800, 38), "#a14d00", "right");
+    y += 96;
+    if (pay.note) { y += 24; text("Nota: " + pay.note, 64, y + 30, font(400, 26), "#4a5872", "left", W - 128); y += 40; }
+    y = docFooter(d, y + 50, "¡Gracias por tu pago!");
+    return docCrop(d, y);
   }
+
+  function statementCanvas(clientId) {
+    const xS = G.state().byClient.get(clientId); const cl = xS.client;
+    const d = docCanvas(); const { x, text, font, rr } = d; const W = DOC_W;
+    let y = docHeader(d, "ESTADO DE CUENTA", null, "Corte: " + G.fmtDateLong(G.today()));
+    // cliente
+    y += 36; const lines = [cl.doc ? "C.C. " + cl.doc : "", cl.phone || ""].filter(Boolean).join("   ·   ");
+    docCard(d, y, lines ? 140 : 100);
+    text(cl.name, 84, y + 64, font(800, 42), "#0f1c33", "left", W - 168);
+    if (lines) text(lines, 84, y + 112, font(400, 28), "#4a5872", "left", W - 168);
+    y += (lines ? 140 : 100) + 28;
+    // resumen
+    const overdue = xS.loans.reduce((s, l) => s + l.overdueAmount, 0);
+    const tiles = [["Total prestado", money(xS.lent), "#0f1c33", "#eef3fb"], ["Total pagado", money(xS.paid), "#11743a", "#e5f6ec"],
+      ["Saldo pendiente", money(xS.debt), xS.debt ? "#a14d00" : "#11743a", xS.debt ? "#fff3e6" : "#e5f6ec"], ["Vencido", money(overdue), overdue ? "#c22f2f" : "#4a5872", overdue ? "#fdecec" : "#eef1f6"]];
+    const tw = (W - 80 - 24) / 2;
+    tiles.forEach(([k, v, col, bg], i) => {
+      const X = 40 + (i % 2) * (tw + 24), Y = y + Math.floor(i / 2) * 154;
+      rr(X, Y, tw, 130, 24); x.fillStyle = bg; x.fill();
+      text(k, X + 30, Y + 50, font(500, 27), "#4a5872");
+      text(v, X + 30, Y + 104, font(800, 42), col, "left", tw - 60);
+    });
+    y += 2 * 154 + 10;
+    // préstamos activos
+    const active = xS.loans.filter((l) => l.status !== "finalizado");
+    const done = xS.loans.length - active.length;
+    text(active.length ? "Préstamos activos" : "Sin préstamos activos", 48, y + 40, font(800, 34), "#0f1c33");
+    y += 64;
+    for (const st of active) {
+      const h = 330; docCard(d, y, h);
+      const late = st.status === "vencido";
+      text("Préstamo #" + st.loan.num, 84, y + 62, font(800, 34), "#0f1c33");
+      rr(W - 84 - 150, y + 28, 150, 48, 24); x.fillStyle = late ? "#fde8e8" : "#e5f6ec"; x.fill();
+      text(late ? "Vencido" : "Al día", W - 84 - 75, y + 61, font(700, 26), late ? "#c22f2f" : "#138a3e", "center");
+      text("Prestado " + money(st.loan.amount) + "  ·  " + G.FREQ[st.loan.freq].label + "  ·  Cuota " + money(st.plan.cuotaValue), 84, y + 112, font(400, 27), "#4a5872", "left", W - 168);
+      docBar(d, 84, y + 140, W - 168, st.paid / st.totalDue);
+      text(st.paidCount + " de " + st.loan.count + " cuotas pagadas", 84, y + 200, font(500, 27), "#4a5872");
+      text("Pagado " + money(st.paid), W - 84, y + 200, font(500, 27), "#4a5872", "right");
+      x.fillStyle = "#edf1f7"; x.fillRect(84, y + 226, W - 168, 2);
+      text("Saldo", 84, y + 290, font(600, 30), "#0f1c33");
+      text(money(st.balance), W - 84, y + 290, font(800, 36), late ? "#c22f2f" : "#0f1c33", "right");
+      if (late) text(plural(st.overdueCount, "cuota vencida", "cuotas vencidas") + " · " + money(st.overdueAmount), W / 2, y + 290, font(600, 25), "#c22f2f", "center");
+      y += h + 24;
+    }
+    // próximos pagos
+    const next = [];
+    for (const st of active) for (const c of st.cuotas) if (c.status !== "pagada") next.push({ st, c });
+    next.sort((a, b) => a.c.date.localeCompare(b.c.date));
+    const show = next.slice(0, 8);
+    if (show.length) {
+      text("Próximos pagos", 48, y + 40, font(800, 34), "#0f1c33"); y += 64;
+      docCard(d, y, show.length * 76 + 24);
+      let yy = y + 12;
+      show.forEach(({ st, c }, i) => {
+        if (i) { x.fillStyle = "#edf1f7"; x.fillRect(84, yy, W - 168, 2); }
+        const late = c.overdue;
+        text(G.fmtDate(c.date), 84, yy + 50, font(600, 29), late ? "#c22f2f" : "#0f1c33");
+        text("#" + st.loan.num + " · Cuota " + c.n + (late ? " · vencida" : c.status === "parcial" ? " · parcial" : ""), 330, yy + 50, font(400, 27), late ? "#c22f2f" : "#4a5872", "left", 380);
+        text(money(c.remaining), W - 84, yy + 50, font(750, 30), late ? "#c22f2f" : "#0f1c33", "right");
+        yy += 76;
+      });
+      y += show.length * 76 + 24;
+      if (next.length > show.length) { text("y " + plural(next.length - show.length, "cuota más", "cuotas más"), W / 2, y + 40, font(400, 26), "#8a97ad", "center"); y += 50; }
+    }
+    if (done) { y += 20; text(plural(done, "préstamo pagado", "préstamos pagados") + " completamente.", 48, y + 30, font(400, 27), "#4a5872"); y += 40; }
+    y = docFooter(d, y + 50, xS.debt ? null : "¡Estás al día!");
+    return docCrop(d, y);
+  }
+
   function fit(ctx, text, max) {
     if (ctx.measureText(text).width <= max) return text;
     let t = text; while (t.length > 1 && ctx.measureText(t + "…").width > max) t = t.slice(0, -1); return t + "…";
   }
 
-  async function sendReceipt(payId) {
-    const { pay, st, cl, cu, balance } = receiptInfo(payId);
-    const first = cl ? cl.name.split(" ")[0] : "";
-    const msg = `Hola${first ? ", " + first : ""} 👋\nTe envío el comprobante de tu pago de ${money(pay.amount)} (cuota ${cu}) del préstamo #${st.loan.num}.\nSaldo pendiente: ${money(balance)}.\n¡Gracias!\n— ${config.company}`;
-    const dataUrl = receiptCanvas(payId).toDataURL("image/png");
-    const name = `Comprobante_${st.loan.num}_${pay.date}.png`;
+  /* Compartir una imagen (comprobante o estado de cuenta) */
+  function shareImageSheet(o) {
     const Cap = window.Capacitor; const Pl = Cap && Cap.Plugins;
-    const hasPhone = cl && cl.phone;
-    sheet("Enviar comprobante", `
-      <button class="sheet-opt" id="sr-img"><span class="t-ico c-green">${ic("image")}</span><div><b>Compartir imagen del comprobante</b><span>Elige WhatsApp y luego el chat del cliente</span></div></button>
-      ${hasPhone ? `<button class="sheet-opt" id="sr-chat"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Abrir chat de ${esc(first)}</b><span>Mensaje con el resumen del pago (${esc(cl.phone)})</span></div></button>` : ""}`, (s) => {
+    const cl = o.client; const first = cl ? cl.name.split(" ")[0] : "";
+    sheet(o.title, `
+      <button class="sheet-opt" id="sr-img"><span class="t-ico c-green">${ic("image")}</span><div><b>Compartir imagen</b><span>Elige WhatsApp y luego el chat de ${esc(first || "la persona")}</span></div></button>
+      ${cl && cl.phone ? `<button class="sheet-opt" id="sr-chat"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Abrir chat de ${esc(first)}</b><span>Mensaje con el resumen (${esc(cl.phone)})</span></div></button>` : ""}`, (s) => {
       $("#sr-img", s).onclick = async () => {
         closeLayer();
+        const dataUrl = o.canvas().toDataURL("image/png");
         try {
           if (Cap && Cap.isNativePlatform && Cap.isNativePlatform() && Pl.Filesystem && Pl.Share) {
-            const r = await Pl.Filesystem.writeFile({ path: name, data: dataUrl.split(",")[1], directory: "CACHE" });
-            await Pl.Share.share({ title: "Comprobante de pago", text: msg, files: [r.uri], dialogTitle: "Enviar comprobante" });
+            const r = await Pl.Filesystem.writeFile({ path: o.file, data: dataUrl.split(",")[1], directory: "CACHE" });
+            await Pl.Share.share({ title: o.title, text: o.msg, files: [r.uri], dialogTitle: o.title });
             return;
           }
           const blob = await (await fetch(dataUrl)).blob();
-          const file = new File([blob], name, { type: "image/png" });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: msg }); return; }
-          const a = document.createElement("a"); a.href = dataUrl; a.download = name; a.click();
-          toast("Comprobante descargado");
-        } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo compartir el comprobante."); }
+          const file = new File([blob], o.file, { type: "image/png" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: o.msg }); return; }
+          const a = document.createElement("a"); a.href = dataUrl; a.download = o.file; a.click();
+          toast("Imagen descargada");
+        } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo compartir la imagen."); }
       };
       const ch = $("#sr-chat", s);
-      if (ch) ch.onclick = () => { closeLayer(); openExternal("https://wa.me/" + waNumber(cl.phone) + "?text=" + encodeURIComponent(msg)); };
+      if (ch) ch.onclick = () => { closeLayer(); openExternal("https://wa.me/" + waNumber(cl.phone) + "?text=" + encodeURIComponent(o.msg)); };
     });
   }
+
+  function sendReceipt(payId) {
+    const { pay, st, cl, cu, balance } = receiptInfo(payId);
+    const first = cl ? cl.name.split(" ")[0] : "";
+    shareImageSheet({
+      title: "Enviar comprobante", client: cl, canvas: () => receiptCanvas(payId),
+      file: `Comprobante_${st.loan.num}_${pay.date}.png`,
+      msg: `Hola${first ? ", " + first : ""} 👋\nTe envío el comprobante de tu pago de ${money(pay.amount)} (cuota ${cu}) del préstamo #${st.loan.num}, del ${G.fmtDate(pay.date)}.\nSaldo pendiente: ${money(balance)}.\n¡Gracias!\n— ${config.company}`,
+    });
+  }
+
+  function sendStatement(clientId) {
+    const xS = G.state().byClient.get(clientId); const cl = xS.client;
+    const first = cl.name.split(" ")[0];
+    const active = xS.loans.filter((l) => l.status !== "finalizado");
+    const nxt = active.map((l) => l.next).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0];
+    const overdue = xS.loans.reduce((s, l) => s + l.overdueAmount, 0);
+    shareImageSheet({
+      title: "Enviar estado de cuenta", client: cl, canvas: () => statementCanvas(clientId),
+      file: `Estado_de_cuenta_${cl.name.replace(/\s+/g, "_")}_${G.today()}.png`,
+      msg: `Hola, ${first} 👋\nEste es tu estado de cuenta al ${G.fmtDate(G.today())}:\n• Total pagado: ${money(xS.paid)}\n• Saldo pendiente: ${money(xS.debt)}` +
+        (overdue ? `\n• Vencido: ${money(overdue)}` : "") + (nxt ? `\n• Próximo pago: ${money(nxt.remaining)} el ${G.fmtDate(nxt.date)}` : "") + `\n— ${config.company}`,
+    });
+  }
+
+  Screens.estado = (p) => {
+    const xS = G.state().byClient.get(p.id);
+    if (!xS) { setTimeout(back); return { html: "" }; }
+    return {
+      html: appbar({ back: true, title: "Estado de cuenta", sub: xS.client.name }) + `<main class="body"><img class="receipt-img" id="ec-img" alt="Estado de cuenta">
+        <button class="btn btn-wa" id="ec-send">${ic("whatsapp")}Enviar estado de cuenta</button></main>`,
+      bind(v) { $("#ec-img", v).src = statementCanvas(p.id).toDataURL("image/png"); $("#ec-send", v).onclick = () => sendStatement(p.id); },
+    };
+  };
 
   // ---------- CALENDARIO ----------
   Screens.calendario = (p) => {
@@ -1110,6 +1271,9 @@
           </div>
           <button class="btn btn-soft" id="aj-save-mora">Guardar recargo</button></div>
 
+        <div class="setting-card"><div class="between"><h3>${ic("lock")}Entrar con huella</h3><label class="switch"><input type="checkbox" id="aj-bio" ${window.Bio && window.Bio.enabled() ? "checked" : ""}><span></span></label></div>
+          <p class="hint" style="margin:0">Al abrir la app podrás entrar con tu huella en vez de escribir la contraseña. La contraseña sigue funcionando siempre.</p></div>
+
         <div class="setting-card"><h3>${ic("lock")}Usuario y contraseña</h3>
           <div class="field field-float">${ic("user")}<label><span>Usuario</span><input id="aj-user" maxlength="30" autocapitalize="none" value="${esc(config.username)}"></label></div>
           <div class="field field-float">${ic("lock")}<label><span>Contraseña actual</span><input id="aj-p0" type="password"></label></div>
@@ -1156,6 +1320,17 @@
           G.ops.addNoPayDate(d, $("#np-note", v).value.trim()); toast("Día sin cobro agregado"); refresh();
         };
         if (stack[stack.length - 1].params.sec === "nopay") setTimeout(() => $("#sec-nopay", v).scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+        // Huella
+        $("#aj-bio", v).onchange = async (e) => {
+          const el = e.target;
+          if (!el.checked) { window.Bio.setEnabled(false); toast("Entrar con huella desactivado"); return; }
+          el.checked = false;
+          if (!window.Bio.plugin()) { alertBox("Instala la última versión", "Para usar la huella necesitas instalar el APK más reciente. Ve a Actualizaciones y toca «Actualizar mediante APK»."); return; }
+          if (!(await window.Bio.available())) { alertBox("Huella no disponible", "Este celular no tiene huella registrada. Regístrala en los Ajustes del celular (Seguridad > Huella digital) y vuelve a intentarlo."); return; }
+          const r = await window.Bio.verify("Activar huella", "Confirma con tu huella");
+          if (r.ok) { window.Bio.setEnabled(true); el.checked = true; toast("Listo: ya puedes entrar con tu huella"); }
+          else if (r.error) toast(r.error);
+        };
         // Recargo
         const mstate = Object.assign({}, m);
         $("#aj-mora", v).onchange = (e) => { mstate.enabled = e.target.checked; $("#aj-mora-box", v).hidden = !e.target.checked; };
@@ -1445,7 +1620,7 @@
 
   // ================= Inicio =================
   function buildTabbar() {
-    const t = { inicio: ["home", "Inicio"], clientes: ["users", "Clientes"], prestamos: ["layers", "Préstamos"], calendario: ["calendar", "Calendario"] };
+    const t = { inicio: ["home", "Inicio"], clientes: ["users", "Clientes"], prestamos: ["layers", "Préstamos"], finanzas: ["chart", "Finanzas"] };
     $$(".tab").forEach((b) => { const [i, l] = t[b.dataset.tab]; b.innerHTML = ic(i) + l; });
     $("#fab").innerHTML = ic("plus");
     $("#fab").onclick = fabSheet;
