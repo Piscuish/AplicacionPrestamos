@@ -147,7 +147,7 @@
   let config = null;
   let onLogout = null;
   const TABS = ["inicio", "clientes", "prestamos", "finanzas", "calendario"]; // calendario: muestra la barra, pero no tiene botón
-  const ROOTS = ["inicio", "clientes", "prestamos", "calendario", "finanzas", "movimientos", "ajustes"];
+  const ROOTS = ["recordatorios", "inicio", "clientes", "prestamos", "calendario", "finanzas", "movimientos", "ajustes"];
 
   function go(name, params, replace) {
     if (stack.length) stack[stack.length - 1].scroll = window.scrollY;
@@ -213,7 +213,7 @@
     layer().innerHTML = `<div class="overlay"></div><aside class="drawer">
       <div class="drawer-head"><div class="company-logo">${logoHtml()}</div><h3>${esc(config.company)}</h3><p>Usuario: ${esc(config.username)}</p><p style="font-size:12.5px;opacity:.65;margin-top:6px">Versión ${esc(Update.current.version)}</p></div>
       <nav>${item("inicio", "home", "Inicio")}${item("clientes", "users", "Clientes")}${item("prestamos", "layers", "Préstamos")}${item("calendario", "calendar", "Calendario de cobros")}
-      ${item("finanzas", "chart", "Finanzas")}${item("movimientos", "list", "Movimientos")}<hr>${item("ajustes", "settings", "Configuración")}
+      ${item("recordatorios", "whatsapp", "Recordatorios")}${item("finanzas", "chart", "Finanzas")}${item("movimientos", "list", "Movimientos")}<hr>${item("ajustes", "settings", "Configuración")}
       <button id="dr-logout">${ic("logout")}Cerrar sesión</button></nav></aside>`;
     $(".overlay", layer()).onclick = closeLayer;
     $("#dr-logout").onclick = () => { closeLayer(); onLogout && onLogout(); };
@@ -223,6 +223,7 @@
     sheet("¿Qué quieres hacer?", `
       <button class="sheet-opt" data-go="clienteForm" data-p='{}'><span class="t-ico c-blue">${ic("user")}</span><div><b>Nuevo cliente</b><span>Registra una persona</span></div></button>
       <button class="sheet-opt" data-go="prestamoForm" data-p='{}'><span class="t-ico c-violet">${ic("hand")}</span><div><b>Nuevo préstamo</b><span>Presta dinero a un cliente</span></div></button>
+      <button class="sheet-opt" data-go="recordatorios"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Recordatorios de cobro</b><span>Avisar por WhatsApp a quien debe</span></div></button>
       <button class="sheet-opt" id="fs-pay"><span class="t-ico c-green">${ic("dollar")}</span><div><b>Registrar pago</b><span>Abono total o parcial de una cuota</span></div></button>
       <button class="sheet-opt" data-go="movForm" data-p='{"type":"out"}'><span class="t-ico c-red">${ic("up")}</span><div><b>Registrar gasto o ingreso</b><span>Transporte, papelería, otros</span></div></button>`,
       (s) => { $("#fs-pay", s).onclick = pickLoanSheet; });
@@ -258,7 +259,11 @@
 
   // ---------- INICIO ----------
   Screens.inicio = () => {
-    setTimeout(() => { const b = $("#live-apply"); if (b) b.onclick = () => Update.applyLiveNow(); });
+    setTimeout(() => {
+      const b = $("#live-apply"); if (b) b.onclick = () => Update.applyLiveNow();
+      const bk = $("#bk-save"); if (bk) bk.onclick = () => saveDriveBackup();
+      const bx = $("#bk-later"); if (bx) bx.onclick = (e) => { e.stopPropagation(); localStorage.setItem("gp.backup.snooze", G.today()); refresh(); };
+    });
     const T = G.totals();
     const up = G.upcoming(6);
     const empty = !G.data.clients.length;
@@ -270,6 +275,8 @@
         ${Update.liveReady ? `<button class="update-banner" id="live-apply">${ic("repeat")}<div><b>Actualización lista (${esc(Update.liveReady.version)})</b><span>Se aplica sola la próxima vez que abras la app. Toca para aplicarla ahora.</span></div>${ic("right")}</button>`
           : Update.available ? `<button class="update-banner" data-go="ajustes">${ic("download")}<div><b>Nueva versión disponible (${esc(Update.available.version)})</b><span>Toca para actualizar. Tus datos no se borran.</span></div>${ic("right")}</button>` : ""}
         <p class="greet">Hola, <b>${esc(config.username)}</b></p>
+        ${backupDue() ? `<div class="update-banner" style="border-color:#f3d39b;background:#fff8ea;color:#8a5600">${ic("upload")}<div><b>${backupAgeDays() === null ? "Aún no tienes copia en Google Drive" : "Última copia en Drive: " + backupAgeText().toLowerCase()}</b><span>Guárdala para no perder tus datos.</span>
+          <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="bk-save" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Guardar ahora</button><button class="btn btn-soft" id="bk-later" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Mañana</button></div></div></div>` : ""}
         <div class="hero-card"><div class="lbl">Por cobrar</div><div class="big">${money(T.pending)}</div>
           <div class="meta"><span>${plural(T.activeLoans, "préstamo activo", "préstamos activos")}</span>${T.overdueLoans ? `<span>⚠ ${plural(T.overdueLoans, "vencido", "vencidos")}</span>` : ""}</div>
           <div class="deco">${ic("hand")}</div></div>
@@ -282,6 +289,8 @@
           <button class="tile" data-go="prestamos" data-p='{"f":"vencido"}'><span class="t-ico c-red">${ic("alert")}</span><div><div class="t-lbl">Pagos vencidos</div><div class="t-val ${T.overdueAmount ? "red" : ""}">${money(T.overdueAmount)}</div></div></button>
         </div>
         ${empty ? `<div class="empty">${ic("users")}<p>Aún no tienes clientes.<br>Empieza registrando el primero.</p><button class="btn btn-primary" ${goAttr("clienteForm", {})}>${ic("plus")}Nuevo cliente</button></div>` : `
+        ${(() => { const R = reminders(); const n = R.vencidos.length + R.hoy.length + R.manana.length; const pend = n - R.sentCount;
+          return n ? `<button class="update-banner" data-go="recordatorios" style="border-color:#bfe6cc;background:#effaf3;color:#11743a">${ic("whatsapp")}<div><b>Recordatorios de cobro (${n})</b><span>${R.vencidos.length ? R.vencidos.length + " vencidos · " : ""}${R.hoy.length} hoy · ${R.manana.length} mañana${R.sentCount ? " · " + R.sentCount + " enviados" : ""}</span></div>${pend ? `<span class="badge b-green">${pend}</span>` : ic("check")}</button>` : ""; })()}
         <div class="between"><h2 class="h2">Próximos pagos</h2><button class="h-link" data-go="calendario">Ver todos</button></div>
         ${up.length ? `<div class="list">${up.map(({ st, c }) => { const cl = client(st.loan.clientId); const late = c.overdue; const today = c.date === G.today();
           return `<button class="item" ${goAttr("pago", { loanId: st.loan.id })}>${avatar(cl)}<div class="grow"><div class="name">${esc(cl ? cl.name : "")}</div><div class="sub">#${st.loan.num} · Cuota ${c.n} de ${st.loan.count}</div></div>
@@ -395,6 +404,7 @@
         <div class="between"><span>Total pagado</span><span class="green">${money(x.paid)}</span></div>
         <div class="between"><span>Saldo pendiente</span><span class="${x.debt ? "red" : ""}">${money(x.debt)}</span></div>
         <div class="between"><span>Cliente desde</span><span>${G.fmtDate(c.createdAt)}</span></div></div>
+        ${x.debt > 0 ? `<button class="btn btn-wa" id="a-remind" ${c.phone ? "" : "disabled"}>${ic("whatsapp")}${c.phone ? "Enviar recordatorio de pago" : "Sin teléfono para recordatorio"}</button>` : ""}
         ${c.email ? `<div class="kv"><div class="between"><span>Correo</span><span style="font-weight:500">${esc(c.email)}</span></div></div>` : ""}
         ${c.notes ? `<div class="kv" style="padding:12px 14px"><div class="mini-lbl">Notas</div><div style="white-space:pre-wrap;margin-top:4px">${esc(c.notes)}</div></div>` : ""}`;
     } else if (tab === "prestamos") {
@@ -435,11 +445,13 @@
             $("#so-csend", sh).onclick = () => { closeLayer(); sendReceipt(pay.id); };
           });
         });
+        const rmBtn = $("#a-remind", v); if (rmBtn) rmBtn.onclick = () => sendReminder(c.id);
         $("#cl-more", v).onclick = () => sheet(null, `
+          ${x.debt > 0 ? `<button class="sheet-opt" id="so-remind"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Enviar recordatorio de pago</b><span>Cuánto debe, próxima cuota y vencido</span></div></button>` : ""}
           ${x.loans.length ? `<button class="sheet-opt" ${goAttr("estado", { id: c.id })}><span class="t-ico c-green">${ic("file")}</span><div><b>Estado de cuenta</b><span>Ver y enviar por WhatsApp</span></div></button>` : ""}
           <button class="sheet-opt" ${goAttr("clienteForm", { id: c.id })}><span class="t-ico c-blue">${ic("edit")}</span><div><b>Editar cliente</b></div></button>
           <button class="sheet-opt" id="so-del"><span class="t-ico c-red">${ic("trash")}</span><div><b>Eliminar cliente</b><span>Solo si no tiene préstamos</span></div></button>`,
-          (s) => { $("#so-del", s).onclick = () => { closeLayer(); deleteClient(c.id); }; });
+          (s) => { $("#so-del", s).onclick = () => { closeLayer(); deleteClient(c.id); }; const r = $("#so-remind", s); if (r) r.onclick = () => { closeLayer(); sendReminder(c.id); }; });
       },
     };
   };
@@ -973,6 +985,102 @@
     };
   };
 
+
+  // ================= Recordatorios de cobro por WhatsApp =================
+  const RM_KEY = "gp.remind.sent";
+  function sentToday() { try { const o = JSON.parse(localStorage.getItem(RM_KEY)) || {}; return o.date === G.today() ? o : { date: G.today(), ids: {} }; } catch (e) { return { date: G.today(), ids: {} }; } }
+  function markSent(id) { const o = sentToday(); o.ids[id] = new Date().toISOString().slice(11, 16); localStorage.setItem(RM_KEY, JSON.stringify(o)); }
+
+  /* Agrupa por cliente lo que debe: vencido, hoy y mañana. */
+  function clientDue(clientId) {
+    const x = G.state().byClient.get(clientId); if (!x) return null;
+    const t = G.today(), m = G.addDays(t, 1);
+    const r = { client: x.client, debt: x.debt, overdue: 0, overdueN: 0, today: 0, todayItems: [], tomorrow: 0, tomorrowItems: [], loans: [], next: null };
+    for (const st of x.loans) {
+      if (st.status === "finalizado") continue;
+      r.loans.push(st.loan.num);
+      for (const c of st.cuotas) {
+        if (c.status === "pagada") continue;
+        if (c.date < t) { r.overdue += c.remaining; r.overdueN++; }
+        else if (c.date === t) { r.today += c.remaining; r.todayItems.push({ num: st.loan.num, n: c.n, count: st.loan.count, v: c.remaining }); }
+        else if (c.date === m) { r.tomorrow += c.remaining; r.tomorrowItems.push({ num: st.loan.num, n: c.n, count: st.loan.count, v: c.remaining }); }
+        if (c.date >= t && (!r.next || c.date < r.next.date)) r.next = { date: c.date, v: c.remaining, num: st.loan.num, n: c.n };
+      }
+    }
+    r.kind = r.overdue ? "vencido" : r.today ? "hoy" : r.tomorrow ? "manana" : null;
+    return r;
+  }
+  function reminders() {
+    const out = { vencidos: [], hoy: [], manana: [], sentCount: 0 }; const sent = sentToday().ids;
+    for (const x of G.state().clients) {
+      if (!(x.debt > 0)) continue;
+      const r = clientDue(x.client.id); if (!r || !r.kind) continue;
+      r.sentAt = sent[x.client.id] || null; if (r.sentAt) out.sentCount++;
+      (r.kind === "vencido" ? out.vencidos : r.kind === "hoy" ? out.hoy : out.manana).push(r);
+    }
+    out.vencidos.sort((a, b) => b.overdue - a.overdue);
+    return out;
+  }
+  function reminderText(r) {
+    const first = r.client.name.split(" ")[0];
+    const cuotas = (items) => items.map((i) => `cuota ${i.n} de ${i.count} del préstamo #${i.num} (${money(i.v)})`).join(" y ");
+    let msg = `Hola, ${first} 👋\n`;
+    if (r.overdue) {
+      msg += `Te recordamos que tienes ${r.overdueN === 1 ? "una cuota vencida" : r.overdueN + " cuotas vencidas"} por *${money(r.overdue)}*.`;
+      if (r.today) msg += `\nAdemás, hoy vence la ${cuotas(r.todayItems)}.`;
+      msg += `\nPor favor ponte al día lo antes posible.`;
+    } else if (r.today) {
+      msg += `Te recordamos que *hoy* vence tu ${cuotas(r.todayItems)}.`;
+    } else if (r.tomorrow) {
+      const d = G.parseISO(G.addDays(G.today(), 1));
+      msg += `Te recordamos que *mañana* (${G.DIAS_LARGO[d.getDay()]} ${d.getDate()}) vence tu ${cuotas(r.tomorrowItems)}.`;
+    } else if (r.next) {
+      msg += `Tu próxima cuota es de ${money(r.next.v)} el ${G.fmtDate(r.next.date)} (préstamo #${r.next.num}).`;
+    } else {
+      msg += `Te escribimos para recordarte tu saldo pendiente.`;
+    }
+    msg += `\n\nSaldo total pendiente: *${money(r.debt)}*.\n¡Gracias!\n— ${config.company}`;
+    return msg;
+  }
+  function sendReminder(clientId, after) {
+    const r = clientDue(clientId); if (!r) return;
+    if (!r.client.phone) { alertBox("Sin teléfono", "Este cliente no tiene teléfono registrado. Agrégalo en Editar cliente para poder enviarle recordatorios."); return; }
+    const msg = reminderText(r);
+    sheet("Recordatorio para " + esc(r.client.name.split(" ")[0]), `
+      <div class="kv" style="padding:12px 14px;margin-bottom:10px;white-space:pre-wrap;font-size:14.5px;line-height:1.45">${esc(msg).replace(/\*([^*]+)\*/g, "<b>$1</b>")}</div>
+      <div class="form"><button class="btn btn-wa" id="rm-go">${ic("whatsapp")}Abrir WhatsApp y enviar</button>
+      <button class="btn btn-soft" id="rm-st">${ic("file")}Enviar con estado de cuenta (imagen)</button></div>
+      <p class="hint" style="margin:10px 0 0">WhatsApp se abre con el mensaje escrito; solo toca enviar.</p>`, (sh) => {
+      $("#rm-go", sh).onclick = () => { closeLayer(); markSent(clientId); openExternal("https://wa.me/" + waNumber(r.client.phone) + "?text=" + encodeURIComponent(msg)); if (after) after(); else refresh(); };
+      $("#rm-st", sh).onclick = () => { closeLayer(); markSent(clientId); sendStatement(clientId); };
+    });
+  }
+
+  Screens.recordatorios = () => {
+    const R = reminders();
+    const row = (r) => {
+      const amt = r.kind === "vencido" ? r.overdue : r.kind === "hoy" ? r.today : r.tomorrow;
+      const sub = r.kind === "vencido" ? `${r.overdueN === 1 ? "1 cuota vencida" : r.overdueN + " cuotas vencidas"}${r.today ? " · hoy " + money(r.today) : ""}` : r.kind === "hoy" ? "Cuota de hoy" : "Cuota de mañana";
+      return `<div class="item">${avatar(r.client)}<div class="grow"><div class="name">${esc(r.client.name)}</div><div class="sub">${sub}</div><div class="sub">Debe en total ${money(r.debt)}</div>
+        ${r.sentAt ? `<div class="sub green">${ic("check")}Enviado hoy ${r.sentAt}</div>` : ""}</div>
+        <div class="right"><div class="amount ${r.kind === "vencido" ? "red" : ""}">${money(amt)}</div>
+        ${r.client.phone ? `<button class="btn ${r.sentAt ? "btn-soft" : "btn-wa"}" data-rm="${r.client.id}" style="min-height:36px;width:auto;padding:0 12px;font-size:14px;margin-top:4px">${ic("whatsapp")}${r.sentAt ? "Otra vez" : "Enviar"}</button>` : `<div class="sub" style="justify-content:flex-end">Sin teléfono</div>`}</div></div>`;
+    };
+    const group = (title, cls, list) => list.length ? `<div class="between"><h2 class="h2 ${cls}">${title}</h2><span class="badge ${cls === "red" ? "b-red" : cls === "green" ? "b-green" : "b-blue"}">${list.length}</span></div><div class="list">${list.map(row).join("")}</div>` : "";
+    const total = R.vencidos.length + R.hoy.length + R.manana.length;
+    return {
+      html: appbar({ back: stack.length > 1, title: "Recordatorios", sub: "Avisa por WhatsApp a quien debe" }) + `<main class="body">
+        ${total ? `<div class="sum3"><div style="background:#fdecec"><div class="n red">${R.vencidos.length}</div><div class="l">Vencidos</div></div>
+          <div style="background:#e5f6ec"><div class="n green">${R.hoy.length}</div><div class="l">Hoy</div></div>
+          <div style="background:#e6efff"><div class="n blue">${R.manana.length}</div><div class="l">Mañana</div></div></div>
+          <p class="hint">Toca <b>Enviar</b>: se abre WhatsApp con el mensaje listo (cuánto debe, la cuota y lo vencido). Enviados hoy: ${R.sentCount} de ${total}.</p>
+          ${group("Vencidos", "red", R.vencidos)}${group("Vencen hoy", "green", R.hoy)}${group("Vencen mañana", "blue", R.manana)}`
+          : `<div class="empty">${ic("checkcircle")}<p>No hay cuotas vencidas, ni para hoy ni para mañana.<br>¡Todo al día!</p></div>`}
+      </main>`,
+      bind(v) { $$("[data-rm]", v).forEach((b) => b.onclick = () => sendReminder(b.dataset.rm)); },
+    };
+  };
+
   // ---------- CALENDARIO ----------
   Screens.calendario = (p) => {
     const t = G.today();
@@ -1282,10 +1390,13 @@
           <p class="error" id="aj-perr"></p>
           <button class="btn btn-soft" id="aj-save-pw">Guardar cambios</button></div>
 
-        <div class="setting-card"><h3>${ic("download")}Copia de seguridad</h3>
-          <p class="hint" style="margin:0">Tus datos se guardan solo en este teléfono. Guarda una copia de vez en cuando (por ejemplo, envíatela por WhatsApp o a tu correo) para no perder nada si cambias o pierdes el celular.</p>
-          <button class="btn btn-primary" id="aj-export">${ic("share")}Guardar copia</button>
-          <button class="btn btn-soft" id="aj-import">${ic("upload")}Restaurar una copia</button>
+        <div class="setting-card" id="sec-backup"><h3>${ic("download")}Copia de seguridad en Google Drive</h3>
+          <p class="hint" style="margin:0">Tus datos viven en este teléfono. Guarda la copia en tu Google Drive para no perder nada si se daña, se pierde o cambias de celular. La app te recuerda cada día.</p>
+          <div class="kv"><div class="between"><span>Última copia en Drive</span><span>${esc(backupAgeText())}</span></div></div>
+          <button class="btn btn-primary" id="aj-export">${ic("upload")}Guardar copia en Google Drive</button>
+          <p class="hint" style="margin:0">Se abre el menú de compartir: elige <b>Drive</b> (o «Guardar en Drive») y toca <b>Guardar</b>.</p>
+          <button class="btn btn-soft" id="aj-import">${ic("download")}Restaurar desde Drive</button>
+          <p class="hint" style="margin:0">Al restaurar, en el selector de archivos toca el menú ☰ y elige <b>Drive</b> para buscar tu copia.</p>
           <input type="file" id="aj-ifile" accept="application/json,.json" hidden>
           <button class="btn btn-soft" id="aj-auto">${ic("clock")}Copias automáticas (${G.snapshots().length})</button></div>
         <p class="note">Gestión de Préstamos · versión ${esc(Update.current.version)}</p>
@@ -1416,20 +1527,7 @@
         };
 
         // Copia de seguridad
-        $("#aj-export", v).onclick = async () => {
-          const json = G.ops.exportAll(); const name = "copia_prestamos_" + G.today() + ".json";
-          const Cap = window.Capacitor; const Pl = Cap && Cap.Plugins;
-          try {
-            if (Cap && Cap.isNativePlatform && Cap.isNativePlatform() && Pl.Filesystem && Pl.Share) {
-              const r = await Pl.Filesystem.writeFile({ path: name, data: json, directory: "CACHE", encoding: "utf8" });
-              await Pl.Share.share({ title: "Copia de seguridad", files: [r.uri], dialogTitle: "Guardar copia de seguridad" });
-              return;
-            }
-            const file = new File([json], name, { type: "application/json" });
-            if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-            const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click(); toast("Copia descargada");
-          } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo guardar la copia."); }
-        };
+        $("#aj-export", v).onclick = () => saveDriveBackup();
         $("#aj-auto", v).onclick = () => {
           const list = G.snapshots();
           sheet("Copias automáticas", `<p class="hint" style="margin:0 0 10px">La app guarda sola una copia cada día y antes de cada actualización. Restaurar una copia reemplaza los datos actuales (antes se guarda una copia de lo actual).</p>
@@ -1452,6 +1550,37 @@
       },
     };
   };
+  // ================= Copia de seguridad en Google Drive =================
+  const BK_KEY = "gp.backup.drive";
+  function lastBackup() { try { return JSON.parse(localStorage.getItem(BK_KEY)) || null; } catch (e) { return null; } }
+  function backupAgeDays() { const b = lastBackup(); return b ? G.diffDays(b.date, G.today()) : null; }
+  function backupAgeText() {
+    const n = backupAgeDays();
+    if (n === null) return "Nunca";
+    return n === 0 ? "Hoy" : n === 1 ? "Ayer" : "Hace " + n + " días";
+  }
+  function backupDue() {
+    const d = G.data; if (!d.clients.length && !d.loans.length) return false;
+    const n = backupAgeDays();
+    if (n !== null && n < 1) return false;
+    return localStorage.getItem("gp.backup.snooze") !== G.today();
+  }
+  async function saveDriveBackup() {
+    const json = G.ops.exportAll(); const name = "copia_prestamos_" + G.today() + ".json";
+    const Cap = window.Capacitor; const Pl = Cap && Cap.Plugins;
+    const done = () => { localStorage.setItem(BK_KEY, JSON.stringify({ date: G.today(), at: new Date().toISOString() })); toast("Copia lista. Si elegiste Drive, quedó guardada en tu cuenta."); refresh(); };
+    try {
+      if (Cap && Cap.isNativePlatform && Cap.isNativePlatform() && Pl.Filesystem && Pl.Share) {
+        const r = await Pl.Filesystem.writeFile({ path: name, data: json, directory: "CACHE", encoding: "utf8" });
+        await Pl.Share.share({ title: "Copia de seguridad " + G.fmtDate(G.today()), files: [r.uri], dialogTitle: "Elige Drive para guardar la copia" });
+        done(); return;
+      }
+      const file = new File([json], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); done(); return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click(); done();
+    } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo guardar la copia."); }
+  }
+
   function saveConfig() { G.Config.set(config); setLogoCache(); }
   async function hash(password, salt) {
     const data = new TextEncoder().encode(salt + ":" + password);
