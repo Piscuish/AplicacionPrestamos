@@ -276,7 +276,7 @@
           : Update.available ? `<button class="update-banner" data-go="ajustes">${ic("download")}<div><b>Nueva versión disponible (${esc(Update.available.version)})</b><span>Toca para actualizar. Tus datos no se borran.</span></div>${ic("right")}</button>` : ""}
         <p class="greet">Hola, <b>${esc(config.username)}</b></p>
         ${backupDue() ? `<div class="update-banner" style="border-color:#f3d39b;background:#fff8ea;color:#8a5600">${ic("upload")}<div><b>${backupAgeDays() === null ? "Aún no tienes copia en Google Drive" : "Última copia en Drive: " + backupAgeText().toLowerCase()}</b><span>Guárdala para no perder tus datos.</span>
-          <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="bk-save" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Guardar ahora</button><button class="btn btn-soft" id="bk-later" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Mañana</button></div></div></div>` : ""}
+          <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="bk-save" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Guardar ahora</button><button class="btn btn-soft" id="bk-later" style="min-height:38px;font-size:14.5px;width:auto;padding:0 14px">Después</button></div></div></div>` : ""}
         <div class="hero-card"><div class="lbl">Por cobrar</div><div class="big">${money(T.pending)}</div>
           <div class="meta"><span>${plural(T.activeLoans, "préstamo activo", "préstamos activos")}</span>${T.overdueLoans ? `<span>⚠ ${plural(T.overdueLoans, "vencido", "vencidos")}</span>` : ""}</div>
           <div class="deco">${ic("hand")}</div></div>
