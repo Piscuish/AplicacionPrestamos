@@ -1,0 +1,13 @@
+{
+  "version": "1.0.120",
+  "build": 120,
+  "minNative": 118,
+  "apkUrl": "https://github.com/Piscuish/AplicacionPrestamos/releases/download/v1.0.120/GestionPrestamos-1.0.120.apk",
+  "apkSize": 10041619,
+  "webUrl": "https://github.com/Piscuish/AplicacionPrestamos/releases/download/v1.0.120/www-120-n118-hbbcdcfdd04.zip",
+  "webSha256": "0cdacebad858b9e195d76ac2da59fd8e99c771fe49e0897480588515dc38e93b",
+  "nativeHash": "bbcdcfdd04",
+  "notes": "Datos en archivo sin límite, app más rápida, Finanzas en la barra y envío automático del comprobante\n\n- Almacenamiento: en el teléfono los datos viven en gp-data.json (escritura segura con temporal + versión anterior); localStorage (~10 MB) solo como copia rápida hasta ~4 MB. Copias automáticas en archivos (copias/). Nunca se guarda antes de terminar de leer el archivo.\n- Velocidad: índice de pagos por préstamo y memoria de fechas (≈8 veces más rápido con un año de datos, mismos resultados)\n- Barra inferior: Inicio · Clientes · + · Cobros · Finanzas; \"Más\" con el botón ☰\n- Casilla \"Enviar comprobante al WhatsApp\" al registrar un pago (abre el chat del cliente directo)\n- Inicio: Cobros de hoy separa \"Vence hoy\" y \"Atrasado\"; lo atrasado ya descuenta abonos parciales\n- Recordatorios: textos sin cortar\n- Pruebas: migración con datos reales de la 1.0.118 (fixture), almacenamiento en archivo y atrasos; el workflow corre las pruebas antes de publicar\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01SUN61Nop3pNQUE2zkjirS5",
+  "date": "2026-11-19",
+  "page": "https://github.com/Piscuish/AplicacionPrestamos/releases/tag/v1.0.120"
+}
