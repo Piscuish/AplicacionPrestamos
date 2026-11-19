@@ -203,12 +203,12 @@
   <!-- ============ 4. APP PRINCIPAL ============ -->
   <section id="screen-app" class="screen app-screen" hidden>
     <div id="view"></div>
-    <nav class="tabbar" id="tabbar">
+    <nav class="tabbar" id="tabbar" aria-label="Navegación principal">
       <button class="tab" data-tab="inicio"></button>
       <button class="tab" data-tab="clientes"></button>
       <div class="fab-wrap"><button class="fab" id="fab" aria-label="Acciones rápidas"></button></div>
-      <button class="tab" data-tab="prestamos"></button>
-      <button class="tab" data-tab="finanzas"></button>
+      <button class="tab" data-tab="cobros"></button>
+      <button class="tab" data-tab="mas"></button>
     </nav>
   </section>
   <div id="layer"></div>
@@ -223,7 +223,18 @@
   </div>
   <div class="toast" id="toast" hidden></div>
 
+  <!-- Orden de carga: datos → componentes → documentos → pantallas → arranque -->
   <script src="js/core.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/docs.js"></script>
+  <script src="js/s-home.js"></script>
+  <script src="js/s-clients.js"></script>
+  <script src="js/s-loans.js"></script>
+  <script src="js/s-pay.js"></script>
+  <script src="js/s-cobros.js"></script>
+  <script src="js/s-org.js"></script>
+  <script src="js/s-money.js"></script>
+  <script src="js/s-admin.js"></script>
   <script src="js/main.js"></script>
   <script src="js/app.js"></script>
 </body>

@@ -56,14 +56,44 @@ Para que siempre sea así:
 - **Respaldo de Android activado** (`allowBackup`): Android puede guardar los datos de la app en la cuenta de Google del teléfono.
 
 ## Estructura
-- `www/` contiene la app. Los cambios se hacen aquí:
-  - `index.html` tiene las pantallas.
-  - `css/styles.css` tiene el diseño.
-  - `js/core.js` maneja los datos y los cálculos (cuotas, pagos, recargos y finanzas).
-  - `js/main.js` contiene las pantallas de la app.
-  - `js/app.js` maneja la configuración inicial y el inicio de sesión.
+- `www/` contiene la app (HTML/CSS/JS sin frameworks). Los scripts se cargan en este orden:
+  - `js/core.js`: datos, migraciones, cálculos financieros, permisos, auditoría, caja y cifrado. **Toda escritura pasa por `GP.ops`**, que revisa permisos, valida y audita.
+  - `js/ui.js`: componentes (campos, listas, hojas, diálogos), navegación, tema claro/oscuro, CSV.
+  - `js/docs.js`: comprobante y estado de cuenta (imagen y PDF) y envío por WhatsApp.
+  - `js/s-home.js` (Inicio, Más, Buscar), `s-clients.js`, `s-loans.js`, `s-pay.js`, `s-cobros.js` (Cobros y Calendario), `s-org.js` (Carteras y Rutas), `s-money.js` (Finanzas, Movimientos, Caja, Reportes), `s-admin.js` (Usuarios, Auditoría, Configuración).
+  - `js/main.js`: arranque, barra inferior, botón central, copias, bloqueo de sesión y actualizaciones.
+  - `js/app.js`: configuración inicial e inicio de sesión.
+  - `css/styles.css`: sistema de diseño. Los colores son variables; el modo oscuro solo cambia variables.
+- `tests/core.test.js`: pruebas de la lógica financiera y de datos.
+- `tools/serve.js`: servidor local para probar en el navegador.
 - `android/` es el proyecto Android generado por Capacitor.
 - `.github/workflows/build-apk.yml` compila y publica el APK.
+
+## Probar en el computador
+Requiere solo Node (no instala nada):
+```
+node --test tests/core.test.js     # pruebas de la lógica (29)
+node tools/serve.js                # abre http://localhost:5173
+```
+En el navegador funciona todo excepto lo nativo: WhatsApp directo, huella, guardar archivos y actualizaciones en vivo.
+
+## Modelo de datos (esquema 2)
+La migración 1 → 2 (`MIGRATIONS[2]` en `core.js`) **solo agrega**:
+- Antes de migrar se guarda una copia intacta en *Copias automáticas* y en el archivo interno `gp-data-antes-esquema-2.json`.
+- Clientes: `status`, `docType`, `refs`, y opcionales `phone2`, `barrio`, `city`, `portfolioId`.
+- Préstamos: `interestMode` (los existentes quedan en `"flat"`, el interés de siempre, así sus cuotas no cambian), y opcionales `firstDate`, `portfolioId`, `method`, `notes`.
+- Pagos: `receiptNo`, `user`, `token` (anti-duplicados) y anulación (`voided`, `voidReason`, `voidedBy`, `voidedAt`). Los pagos ya no se borran: se anulan.
+- Movimientos: `kind` (`gasto`, `ingreso`, `aporte`, `retiro`, `ajuste`).
+- Listas nuevas: `portfolios`, `routes`, `visits`, `users`, `cash`, `audit`.
+- Ajustes nuevos: métodos de pago, categorías de gastos, tasa de usura, días para "en mora", modalidad de interés por defecto.
+
+Si se volviera a una versión anterior de la app, los datos se siguen leyendo (los campos nuevos se ignoran), pero esa versión contaría los pagos anulados.
+
+## Limitaciones conocidas (no simuladas)
+- **Varios usuarios, un solo teléfono.** Los cobradores entran con su usuario en el mismo teléfono; no hay sincronización entre teléfonos. Eso requiere un servidor con autenticación compartida y una estrategia de conflictos (por ejemplo, pagos con identificador único, que ya existe: `token`).
+- **Mapa:** no hay mapa dentro de la app (necesitaría un proveedor de mapas y una clave). La ruta se abre en Google Maps con las direcciones registradas; no se inventan coordenadas.
+- **Tasa de usura:** la certifica la Superintendencia Financiera cada mes. La app no la descarga: se escribe en *Configuración → Finanzas*, y cada préstamo nuevo se compara con ella.
+- **Excel:** los reportes se exportan en CSV (separado por `;`, con tildes), que Excel abre directamente.
 
 ## Compilar en tu computador (opcional)
 Requiere Node 22, JDK 21 y Android Studio:

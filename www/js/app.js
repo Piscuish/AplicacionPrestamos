@@ -210,7 +210,14 @@
   }
   async function tryBio(config) {
     const r = await window.Bio.verify("Iniciar sesión", config.company);
-    if (r.ok) { failed = 0; openHome(config); }
+    if (r.ok) {
+      // La huella queda ligada al usuario que la activó en este teléfono.
+      const id = window.Bio.userId(); const G = window.GP;
+      const u = id === "admin" ? { id: "admin", username: config.username, name: config.username, role: "admin" } : G.data.users.find((x) => x.id === id && x.active !== false);
+      if (!u) { window.Bio.setEnabled(false); $("#login-error").textContent = "La huella ya no está asociada a un usuario activo. Entra con tu contraseña."; return; }
+      G.startSession({ id: u.id, username: u.username, name: u.name || u.username, role: u.role });
+      failed = 0; openHome(config);
+    }
     else if (r.error) $("#login-error").textContent = r.error;
   }
 
@@ -221,8 +228,9 @@
     const pass = $("#login-pass").value;
     const err = $("#login-error");
     if (!user || !pass) { err.textContent = "Escribe tu usuario y contraseña."; return; }
-    const hash = await hashPassword(pass, config.salt);
-    if (user.toLowerCase() === config.username.toLowerCase() && hash === config.passwordHash) {
+    // Administrador (configuración inicial) o usuarios creados en «Usuarios y cobradores»
+    const s = await window.GP.login(user, pass);
+    if (s) {
       failed = 0;
       openHome(config);
     } else {
@@ -247,7 +255,7 @@
   // ---------- 4. Entrar a la app ----------
   function openHome(config) {
     show("app");
-    window.Main.start(config, () => openLogin(store.get()));
+    window.Main.start(store.get() || config, () => openLogin(store.get()));
   }
 
   // ---------- Botón "atrás" de Android ----------

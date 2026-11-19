@@ -4,6 +4,8 @@
   "description": "Gestión de Préstamos - app Android",
   "main": "index.js",
   "scripts": {
+    "test": "node --test tests/core.test.js",
+    "serve": "node tools/serve.js",
     "sync": "npx cap sync android"
   },
   "keywords": [],
