@@ -35,6 +35,12 @@
         </provider>
     </application>
 
+    <!-- Para saber si WhatsApp / WhatsApp Business están instalados (Android 11+) -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

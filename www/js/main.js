@@ -741,7 +741,7 @@
       bind(v) {
         $("#ok-send", v).onclick = () => sendReceipt(pay.id);
         $("#ok-back", v).onclick = () => { stack.pop(); if (!stack.length || stack[stack.length - 1].name !== "prestamo") stack.push({ name: "prestamo", params: { id: st.loan.id } }); render(true); };
-        if (p.autoSend) { p.autoSend = false; setTimeout(() => sendReceipt(pay.id), 400); }
+        if (p.autoSend) { p.autoSend = false; setTimeout(() => sendReceipt(pay.id, true), 400); }
       },
     };
   };
@@ -923,52 +923,78 @@
     let t = text; while (t.length > 1 && ctx.measureText(t + "…").width > max) t = t.slice(0, -1); return t + "…";
   }
 
-  /* Compartir una imagen (comprobante o estado de cuenta) */
-  function shareImageSheet(o) {
+  /* Compartir una imagen (comprobante o estado de cuenta).
+     Si el cliente tiene teléfono, se envía DIRECTO a su chat de WhatsApp
+     (complemento propio WhatsAppShare); si no, se usa el menú de compartir. */
+  function waPlugin() { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.WhatsAppShare; }
+  async function shareImageGeneric(o) {
     const Cap = window.Capacitor; const Pl = Cap && Cap.Plugins;
+    const dataUrl = o.canvas().toDataURL("image/png");
+    try {
+      if (Cap && Cap.isNativePlatform && Cap.isNativePlatform() && Pl.Filesystem && Pl.Share) {
+        const r = await Pl.Filesystem.writeFile({ path: o.file, data: dataUrl.split(",")[1], directory: "CACHE" });
+        await Pl.Share.share({ title: o.title, text: o.msg, files: [r.uri], dialogTitle: o.title });
+        return;
+      }
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], o.file, { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: o.msg }); return; }
+      const a = document.createElement("a"); a.href = dataUrl; a.download = o.file; a.click();
+      toast("Imagen descargada");
+    } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo compartir la imagen."); }
+  }
+  async function shareImageDirect(o, app) {
+    const W = waPlugin(); const cl = o.client;
+    try {
+      await W.shareImage({ phone: waNumber(cl.phone), base64: o.canvas().toDataURL("image/png"), text: o.msg, fileName: o.file, app: app || "" });
+      if (o.onSent) o.onSent();
+    } catch (e) {
+      const code = String((e && (e.code || e.message)) || e);
+      if (/not_installed/.test(code)) { toast("WhatsApp no está instalado. Elige otra app."); shareImageGeneric(o); }
+      else toast("No se pudo abrir WhatsApp. Intenta con «Otra app».");
+    }
+  }
+  async function shareImageSheet(o) {
     const cl = o.client; const first = cl ? cl.name.split(" ")[0] : "";
+    const W = waPlugin();
+    let apps = { whatsapp: false, business: false };
+    if (W && cl && cl.phone) { try { apps = await W.available(); } catch (e) { /* sin datos */ } }
+    const direct = !!(W && cl && cl.phone && (apps.whatsapp || apps.business));
+    const both = direct && apps.whatsapp && apps.business;
+    if (o.directNow && direct && !both) { shareImageDirect(o, apps.whatsapp ? "com.whatsapp" : "com.whatsapp.w4b"); return; }
     sheet(o.title, `
-      <button class="sheet-opt" id="sr-img"><span class="t-ico c-green">${ic("image")}</span><div><b>Compartir imagen</b><span>Elige WhatsApp y luego el chat de ${esc(first || "la persona")}</span></div></button>
-      ${cl && cl.phone ? `<button class="sheet-opt" id="sr-chat"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Abrir chat de ${esc(first)}</b><span>Mensaje con el resumen (${esc(cl.phone)})</span></div></button>` : ""}`, (s) => {
-      $("#sr-img", s).onclick = async () => {
-        closeLayer();
-        const dataUrl = o.canvas().toDataURL("image/png");
-        try {
-          if (Cap && Cap.isNativePlatform && Cap.isNativePlatform() && Pl.Filesystem && Pl.Share) {
-            const r = await Pl.Filesystem.writeFile({ path: o.file, data: dataUrl.split(",")[1], directory: "CACHE" });
-            await Pl.Share.share({ title: o.title, text: o.msg, files: [r.uri], dialogTitle: o.title });
-            return;
-          }
-          const blob = await (await fetch(dataUrl)).blob();
-          const file = new File([blob], o.file, { type: "image/png" });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: o.msg }); return; }
-          const a = document.createElement("a"); a.href = dataUrl; a.download = o.file; a.click();
-          toast("Imagen descargada");
-        } catch (e) { if (!/cancel|abort/i.test(String(e && (e.message || e)))) toast("No se pudo compartir la imagen."); }
-      };
+      ${direct ? `
+        <button class="sheet-opt" id="sr-direct"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Enviar al WhatsApp de ${esc(first)}</b><span>Se abre su chat (${esc(cl.phone)}) con la imagen lista; solo toca enviar</span></div></button>
+        ${both ? `<button class="sheet-opt" id="sr-direct-b"><span class="t-ico c-green">${ic("whatsapp")}</span><div><b>Enviar con WhatsApp Business</b><span>Mismo chat, desde tu WhatsApp Business</span></div></button>` : ""}`
+      : cl && cl.phone && !W ? `<p class="hint" style="margin:0 0 8px">Para enviar directo al chat del cliente instala la última versión (Configuración → Actualizaciones → Actualizar mediante APK).</p>` : ""}
+      <button class="sheet-opt" id="sr-img"><span class="t-ico c-blue">${ic("share")}</span><div><b>${direct ? "Otra app o contacto" : "Compartir imagen"}</b><span>${direct ? "Elegir app y contacto manualmente" : "Elige WhatsApp y luego el chat de " + esc(first || "la persona")}</span></div></button>
+      ${cl && cl.phone ? `<button class="sheet-opt" id="sr-chat"><span class="t-ico c-violet">${ic("note")}</span><div><b>Solo mensaje de texto</b><span>Abre el chat de ${esc(first)} con el resumen, sin imagen</span></div></button>` : ""}`, (s) => {
+      const d = $("#sr-direct", s); if (d) d.onclick = () => { closeLayer(); shareImageDirect(o, apps.whatsapp ? "com.whatsapp" : "com.whatsapp.w4b"); };
+      const db = $("#sr-direct-b", s); if (db) db.onclick = () => { closeLayer(); shareImageDirect(o, "com.whatsapp.w4b"); };
+      $("#sr-img", s).onclick = () => { closeLayer(); shareImageGeneric(o); };
       const ch = $("#sr-chat", s);
-      if (ch) ch.onclick = () => { closeLayer(); openExternal("https://wa.me/" + waNumber(cl.phone) + "?text=" + encodeURIComponent(o.msg)); };
+      if (ch) ch.onclick = () => { closeLayer(); if (o.onSent) o.onSent(); openExternal("https://wa.me/" + waNumber(cl.phone) + "?text=" + encodeURIComponent(o.msg)); };
     });
   }
 
-  function sendReceipt(payId) {
+  function sendReceipt(payId, directNow) {
     const { pay, st, cl, cu, balance } = receiptInfo(payId);
     const first = cl ? cl.name.split(" ")[0] : "";
     shareImageSheet({
-      title: "Enviar comprobante", client: cl, canvas: () => receiptCanvas(payId),
+      title: "Enviar comprobante", client: cl, canvas: () => receiptCanvas(payId), directNow: !!directNow,
       file: `Comprobante_${st.loan.num}_${pay.date}.png`,
       msg: `Hola${first ? ", " + first : ""} 👋\nTe envío el comprobante de tu pago de ${money(pay.amount)} (cuota ${cu}) del préstamo #${st.loan.num}, del ${G.fmtDate(pay.date)}.\nSaldo pendiente: ${money(balance)}.\n¡Gracias!\n— ${config.company}`,
     });
   }
 
-  function sendStatement(clientId) {
+  function sendStatement(clientId, onSent) {
     const xS = G.state().byClient.get(clientId); const cl = xS.client;
     const first = cl.name.split(" ")[0];
     const active = xS.loans.filter((l) => l.status !== "finalizado");
     const nxt = active.map((l) => l.next).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0];
     const overdue = xS.loans.reduce((s, l) => s + l.overdueAmount, 0);
     shareImageSheet({
-      title: "Enviar estado de cuenta", client: cl, canvas: () => statementCanvas(clientId),
+      title: "Enviar estado de cuenta", client: cl, canvas: () => statementCanvas(clientId), onSent,
       file: `Estado_de_cuenta_${cl.name.replace(/\s+/g, "_")}_${G.today()}.png`,
       msg: `Hola, ${first} 👋\nEste es tu estado de cuenta al ${G.fmtDate(G.today())}:\n• Total pagado: ${money(xS.paid)}\n• Saldo pendiente: ${money(xS.debt)}` +
         (overdue ? `\n• Vencido: ${money(overdue)}` : "") + (nxt ? `\n• Próximo pago: ${money(nxt.remaining)} el ${G.fmtDate(nxt.date)}` : "") + `\n— ${config.company}`,
@@ -1052,7 +1078,7 @@
       <button class="btn btn-soft" id="rm-st">${ic("file")}Enviar con estado de cuenta (imagen)</button></div>
       <p class="hint" style="margin:10px 0 0">WhatsApp se abre con el mensaje escrito; solo toca enviar.</p>`, (sh) => {
       $("#rm-go", sh).onclick = () => { closeLayer(); markSent(clientId); openExternal("https://wa.me/" + waNumber(r.client.phone) + "?text=" + encodeURIComponent(msg)); if (after) after(); else refresh(); };
-      $("#rm-st", sh).onclick = () => { closeLayer(); markSent(clientId); sendStatement(clientId); };
+      $("#rm-st", sh).onclick = () => { closeLayer(); sendStatement(clientId, () => { markSent(clientId); refresh(); }); };
     });
   }
 
