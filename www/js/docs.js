@@ -236,7 +236,8 @@
       else toast("No se pudo abrir WhatsApp. Intenta con «Otra app».", "err");
     }
   }
-  /* Hoja de opciones: el usuario elige cómo enviar. Nunca se abre WhatsApp sin un toque. */
+  /* Hoja de opciones: el usuario elige cómo enviar. Con directNow (casilla al registrar
+     un pago) se abre directo el chat del cliente; igual hay que tocar "Enviar" en WhatsApp. */
   async function shareSheet(o) {
     const cl = o.client; const first = cl ? cl.name.split(" ")[0] : "";
     const Wp = waPlugin();
@@ -244,6 +245,7 @@
     if (Wp && cl && cl.phone) { try { apps = await Wp.available(); } catch (e) { /* sin datos */ } }
     const direct = !!(Wp && cl && cl.phone && (apps.whatsapp || apps.business));
     const both = direct && apps.whatsapp && apps.business;
+    if (o.directNow && direct && !both) { shareImageDirect(o, apps.whatsapp ? "com.whatsapp" : "com.whatsapp.w4b"); return; }
     sheet(o.title, `
       ${direct ? U.C.opt("whatsapp", "green", "Enviar al WhatsApp de " + esc(first), "Se abre su chat (" + esc(cl.phone) + ") con la imagen lista", 'id="sr-direct"')
         + (both ? U.C.opt("whatsapp", "green", "Enviar con WhatsApp Business", "Mismo chat, desde WhatsApp Business", 'id="sr-direct-b"') : "") : ""}
@@ -257,11 +259,11 @@
       const ch = $("#sr-chat", s); if (ch) ch.onclick = () => { closeLayer(); if (o.onSent) o.onSent(); openExternal("https://wa.me/" + waNumber(cl.phone) + "?text=" + encodeURIComponent(o.msg)); };
     });
   }
-  function sendReceipt(payId) {
+  function sendReceipt(payId, directNow) {
     const { pay, st, cl, cu, balance } = receiptInfo(payId);
     const first = cl ? cl.name.split(" ")[0] : "";
     shareSheet({
-      title: "Enviar comprobante", client: cl, canvas: () => receiptCanvas(payId),
+      title: "Enviar comprobante", client: cl, canvas: () => receiptCanvas(payId), directNow: !!directNow,
       file: `Comprobante_${pay.receiptNo || st.loan.num}_${pay.date}.png`,
       msg: `Hola${first ? ", " + first : ""} 👋\nTe envío el comprobante ${pay.receiptNo ? pay.receiptNo + " " : ""}de tu pago de ${money(pay.amount)} (cuota ${cu}) del préstamo #${st.loan.num}, del ${G.fmtDate(pay.date)}.\nSaldo pendiente: ${money(balance)}.\n¡Gracias!\n— ${cfg().company}`,
     });

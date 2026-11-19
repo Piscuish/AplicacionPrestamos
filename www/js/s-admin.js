@@ -255,8 +255,8 @@
       };
       $("#bk-auto", v).onclick = () => {
         const list = G.snapshots();
-        sheet("Copias automáticas", `<p class="hint" style="margin-bottom:10px">Se guardan solas cada día, antes de cada actualización y antes de migrar o restaurar datos.</p>${list.length ? `<div class="list">${list.map((x, i) => `<button class="item" data-snap="${i}"><span class="lead-ico">${ic("clock")}</span><div class="grow"><div class="name">${G.fmtDate(x.at.slice(0, 10))} · ${x.at.slice(11, 16)}</div><div class="sub">${esc(x.reason)} · ${(x.data.clients || []).length} clientes · ${(x.data.loans || []).length} préstamos</div></div></button>`).join("")}</div>` : C.empty("history", "Aún no hay copias", "")}`, (sh) => {
-          $$("[data-snap]", sh).forEach((b) => b.onclick = async () => { const x = list[b.dataset.snap]; closeLayer(); if (await confirmBox("¿Restaurar esta copia?", `Se vuelve a los datos del ${G.fmtDate(x.at.slice(0, 10))}. Antes se guarda una copia de lo actual.`, "Restaurar", true)) { if (act(() => G.restoreSnapshot(+b.dataset.snap), "Copia restaurada")) U.root("inicio"); } });
+        sheet("Copias automáticas", `<p class="hint" style="margin-bottom:10px">Se guardan solas cada día, antes de cada actualización y antes de migrar o restaurar datos.</p>${list.length ? `<div class="list">${list.map((x, i) => `<button class="item" data-snap="${i}"><span class="lead-ico">${ic("clock")}</span><div class="grow"><div class="name">${G.fmtDate(x.at.slice(0, 10))} · ${x.at.slice(11, 16)}</div><div class="sub">${esc(x.reason)} · ${(x.counts || {}).clients || 0} clientes · ${(x.counts || {}).loans || 0} préstamos</div></div></button>`).join("")}</div>` : C.empty("history", "Aún no hay copias", "")}`, (sh) => {
+          $$("[data-snap]", sh).forEach((b) => b.onclick = async () => { const x = list[b.dataset.snap]; closeLayer(); if (await confirmBox("¿Restaurar esta copia?", `Se vuelve a los datos del ${G.fmtDate(x.at.slice(0, 10))}. Antes se guarda una copia de lo actual.`, "Restaurar", true)) { if (await U.actAsync(() => G.restoreSnapshot(+b.dataset.snap), "Copia restaurada")) U.root("inicio"); } });
         });
       };
     },

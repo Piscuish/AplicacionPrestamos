@@ -408,3 +408,93 @@ test("datos dañados no se sobrescriben: se apartan y se recupera la copia", asy
   assert.equal(G.data.clients[0].name, "Copia");
   assert.ok(Object.keys(mem).some((k) => k.startsWith("gp.data.damaged.")));
 });
+
+/* ===================== Migración de datos reales de la 1.0.118 =====================
+   tests/fixtures/datos-v118.json se generó con el código de la versión 1.0.118
+   (esquema 1). Cualquier versión nueva debe abrir esos datos y calcular EXACTAMENTE
+   los mismos saldos, cuotas, fechas, pagos y recargos. Si esta prueba falla, la
+   actualización pondría en riesgo los datos de los usuarios: no se publica. */
+test("migración: datos de la 1.0.118 se conservan con los mismos saldos y cuotas", async () => {
+  const fx = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "datos-v118.json"), "utf8"));
+  const { G, mem } = await admin({ "gp.data.v1": JSON.stringify(fx.data) });
+  const E = fx.expected;
+  assert.equal(G.data.schema, G.SCHEMA, "se migró al esquema actual");
+  assert.equal(G.data.clients.length, E.clients, "mismos clientes");
+  assert.equal(G.data.payments.length, E.payments, "mismos pagos");
+  const plain = (x) => JSON.parse(JSON.stringify(x)); // listas creadas dentro del entorno simulado
+  assert.deepEqual(plain(G.data.movements.map((m) => m.type + ":" + m.amount).sort()), E.movements, "mismos movimientos");
+  assert.equal(G.data.loans.length, E.loans.length, "mismos préstamos");
+  for (const exp of E.loans) {
+    const loan = G.data.loans.find((l) => l.num === exp.num);
+    assert.ok(loan, "existe " + exp.num);
+    const st = G.computeLoan(loan);
+    assert.equal(st.totalDue, exp.total, exp.num + " total");
+    assert.equal(st.paid, exp.paid, exp.num + " pagado");
+    assert.equal(st.balance, exp.balance, exp.num + " saldo");
+    assert.equal(st.chargesTotal, exp.charges, exp.num + " recargos");
+    assert.deepEqual(plain(st.cuotas.map((c) => [c.n, c.date, c.due, c.paid])), exp.cuotas, exp.num + " cuotas (fecha, valor, pagado)");
+  }
+  // La copia previa a la migración guarda los datos originales intactos.
+  const snaps = G.snapshots();
+  assert.ok(snaps.some((s) => /antes de migrar/.test(s.reason)), "hay copia antes de migrar");
+  assert.ok(mem["gp.data.v1"], "los datos siguen guardados");
+});
+
+/* Teléfono simulado: archivos en memoria (como el complemento Filesystem). */
+function bootPhone(store, files) {
+  const mem = Object.assign({}, store || {});
+  const localStorage = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } };
+  const fsx = {
+    writeFile: async (o) => { files[o.path] = o.data; return { uri: "file:///" + o.path }; },
+    readFile: async (o) => { if (!(o.path in files)) throw new Error("no existe"); return { data: files[o.path] }; },
+    deleteFile: async (o) => { if (!(o.path in files)) throw new Error("no existe"); delete files[o.path]; },
+    rename: async (o) => { if (!(o.from in files)) throw new Error("no existe"); files[o.to] = files[o.from]; delete files[o.from]; },
+  };
+  const window = { Capacitor: { isNativePlatform: () => true, Plugins: { Filesystem: fsx } } };
+  const ctx = { window, localStorage, crypto: globalThis.crypto, TextEncoder, TextDecoder, console, setTimeout, clearTimeout, Date, Math, JSON };
+  vm.createContext(ctx); vm.runInContext(CORE, ctx);
+  return { G: window.GP, mem, files };
+}
+test("almacenamiento: datos grandes pasan a archivo, se recuperan al reabrir y sobreviven a un archivo dañado", async () => {
+  const files = {};
+  const cfg = JSON.stringify(await adminConfig());
+  const a = bootPhone({ "gp.config.v1": cfg }, files);
+  await a.G.ready(); assert.ok(await a.G.login("admin", "secreto1"));
+  const photo = "data:image/jpeg;base64," + "A".repeat(50000);
+  for (let i = 0; i < 50; i++) {
+    const c = a.G.ops.saveClient({ name: "Cliente " + i, photo });
+    const l = a.G.ops.createLoan({ clientId: c.id, amount: 400000, rate: 20, count: 10, freq: "diaria", startDate: "2026-03-02" });
+    for (let d = 0; d < 5; d++) a.G.ops.addPayment({ loanId: l.id, amount: 48000, date: a.G.addDays("2026-03-03", d), method: "Efectivo" });
+  }
+  await a.G.persistNow();
+  const sum = (G) => JSON.stringify([G.data.clients.length, G.data.loans.length, G.data.payments.length, G.totals().pending]);
+  const expected = sum(a.G);
+  assert.equal(a.mem["gp.data.store"], "file", "pasó a modo archivo");
+  assert.equal(a.mem["gp.data.v1"], undefined, "liberó el espacio web limitado");
+  assert.ok(files["gp-data.json"].length > 2000000, "todo quedó en el archivo");
+  // Reabrir la app
+  const b = bootPhone(a.mem, files);
+  assert.throws(() => b.G.save(), /cargando/, "no se guarda nada antes de leer el archivo");
+  await b.G.ready(); assert.ok(await b.G.login("admin", "secreto1"));
+  assert.equal(sum(b.G), expected, "mismos datos al reabrir");
+  b.G.ops.addPayment({ loanId: b.G.data.loans[0].id, amount: 48000, date: "2026-03-09", method: "Efectivo" });
+  await b.G.persistNow();
+  // Archivo principal dañado: se usa el anterior (gp-data.prev.json)
+  files["gp-data.json"] = "{dañado";
+  const c = bootPhone(b.mem, files);
+  await c.G.ready(); assert.ok(await c.G.login("admin", "secreto1"));
+  assert.ok(c.G.data.payments.length >= 250, "recuperó los datos desde la versión anterior del archivo");
+});
+
+test("cobros de hoy: lo atrasado descuenta los abonos parciales ya hechos", async () => {
+  const { G } = await admin();
+  const t = G.today();
+  const c = G.ops.saveClient({ name: "Abono Parcial" });
+  const l = G.ops.createLoan({ clientId: c.id, amount: 300000, rate: 0, count: 3, freq: "semanal", startDate: G.addDays(t, -22) });
+  G.ops.addPayment({ loanId: l.id, amount: 150000, date: G.addDays(t, -10), method: "Efectivo" }); // cuota 1 completa + 50.000 de la 2
+  const st = G.computeLoan(l);
+  const row = G.collectionsFor(t).find((r) => r.clientId === c.id);
+  assert.ok(row, "aparece en cobros de hoy");
+  assert.equal(row.overdue + row.expected, st.overdueAmount + st.cuotas.filter((q) => q.date === t).reduce((a, q) => a + q.remaining, 0), "atrasado + hoy = lo realmente pendiente");
+  assert.equal(row.overdue, st.overdueAmount, "atrasado = vencido real (sin contar lo ya abonado)");
+});

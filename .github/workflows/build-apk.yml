@@ -39,6 +39,10 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # Si alguna prueba falla (por ejemplo, la migración de datos reales), NO se publica nada.
+      - name: Pruebas (datos y cálculos)
+        run: npm test
+
       - name: Versión nativa mínima (decide si la actualización puede ser en vivo)
         id: nat
         env:

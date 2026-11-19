@@ -43,7 +43,8 @@
           <div class="chips" style="margin-top:-4px">${quick.map(([lb, val]) => `<button type="button" class="chip" data-q="${val}">${esc(lb)} · ${money(val)}</button>`).join("")}</div>
           <div id="pf-prev"></div>
           <div class="grid2">${C.field({ id: "pf-date", label: "Fecha", type: "date", value: p.date || G.today(), attrs: `max="${G.today()}"` })}${C.select({ id: "pf-method", label: "Método", options: methods.map((m) => [m, m]), value: p.method || methods[0] })}</div>
-          ${C.field({ id: "pf-note", label: "Observación (opcional)", icon: "note", value: p.note || "", attrs: 'maxlength="120"' })}`
+          ${C.field({ id: "pf-note", label: "Observación (opcional)", icon: "note", value: p.note || "", attrs: 'maxlength="120"' })}
+          ${cl && cl.phone ? `<label class="check"><input type="checkbox" id="pf-send" ${localStorage.getItem("gp.pay.autosend") === "0" ? "" : "checked"}>Enviar comprobante al WhatsApp de ${esc(cl.name.split(" ")[0])}</label>` : ""}`
         : `${C.field({ id: "pf-date", label: "Fecha de la visita", type: "date", value: G.today() })}
           ${C.seg("vr", [["no_pago", "No pagó"], ["no_encontrado", "No lo encontré"]], p.vr || "no_pago", "two")}
           ${C.textarea({ id: "pf-note", icon: "note", placeholder: "Observación: p. ej. pidió pagar el jueves", value: "" })}
@@ -88,7 +89,9 @@
           const pay = act(() => G.ops.addPayment({ loanId: l.id, amount: a, date, method: $("#pf-method", v).value, note: $("#pf-note", v).value.trim(), token: p.token }));
           if (pay && p.routeId) { const after = G.computeLoan(U.loanOf(l.id)); act(() => G.ops.addVisit({ clientId: l.clientId, routeId: p.routeId, date, result: a >= c.remaining || after.status === "finalizado" ? "pago_total" : "pago_parcial", paymentId: pay.id })); }
           U.busy(btn, false);
-          if (pay) U.go("pagoOk", { id: pay.id }, true);
+          const sendCk = $("#pf-send", v);
+          if (sendCk) { try { localStorage.setItem("gp.pay.autosend", sendCk.checked ? "1" : "0"); } catch (er) { /* sin espacio */ } }
+          if (pay) U.go("pagoOk", { id: pay.id, autoSend: !!(sendCk && sendCk.checked) }, true);
         };
       },
     };
@@ -112,6 +115,8 @@
       bind(v) {
         $("#ok-send", v).onclick = () => window.Docs.sendReceipt(pay.id);
         $("#ok-back", v).onclick = () => U.back();
+        // Casilla "Enviar comprobante al WhatsApp": se abre el chat del cliente con el comprobante listo
+        if (p.autoSend) { p.autoSend = false; setTimeout(() => window.Docs.sendReceipt(pay.id, true), 400); }
       },
     };
   };
@@ -211,7 +216,7 @@
     const row = (r) => {
       const amt = r.kind === "vencido" ? r.overdue : r.kind === "hoy" ? r.today : r.tomorrow;
       const sub = r.kind === "vencido" ? plural(r.overdueN, "cuota vencida", "cuotas vencidas") : r.kind === "hoy" ? "Vence hoy" : "Vence mañana";
-      return `<div class="item">${avatar(r.client)}<div class="grow"><div class="name">${esc(r.client.name)}</div><div class="sub">${sub} · debe ${money(r.debt)}</div>${r.sentAt ? `<div class="sub green">${ic("check")}Enviado hoy ${r.sentAt}</div>` : ""}</div>
+      return `<div class="item">${avatar(r.client)}<div class="grow"><div class="name">${esc(r.client.name)}</div><div class="sub">${sub}</div><div class="sub">Debe en total ${money(r.debt)}</div>${r.sentAt ? `<div class="sub green">${ic("check")}Enviado hoy ${r.sentAt}</div>` : ""}</div>
         <div class="right"><span class="amount ${r.kind === "vencido" ? "red" : ""}">${money(amt)}</span>${r.client.phone ? `<button class="btn sm ${r.sentAt ? "btn-soft" : "btn-wa"}" data-rm="${r.client.id}">${ic("whatsapp", "sm")}${r.sentAt ? "Otra vez" : "Enviar"}</button>` : `<span class="xs muted">Sin teléfono</span>`}</div></div>`;
     };
     const group = (title, list) => list.length ? C.section(`${title} <span class="muted">· ${list.length}</span>`, "", `<div class="list">${list.map(row).join("")}</div>`) : "";

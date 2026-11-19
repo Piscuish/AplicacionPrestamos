@@ -49,11 +49,16 @@ Para que siempre sea así:
 5. Antes de actualizar, guarda una copia en **Configuración → Copia de seguridad**.
 
 ### Protecciones automáticas dentro del código (`www/js/core.js`)
-- **Espejo en archivo:** cada vez que se guarda algo, también se escribe en un archivo interno (`gp-data.json`). Si el almacenamiento de la app se perdiera, al abrirla se restaura sola desde ese archivo.
-- **Copia antes de cada actualización:** la app detecta que cambió de versión y guarda una copia automática antes de cualquier otra cosa. Además guarda una copia diaria, hasta 5 en total, que se pueden ver en *Configuración → Copias automáticas*.
+- **Datos en archivo, sin límite de tamaño:** en el teléfono los datos viven en el archivo interno `gp-data.json`. Se escribe de forma segura: primero un temporal y luego se reemplaza, guardando también la versión anterior (`gp-data.prev.json`). Al abrir se usa el más reciente que se pueda leer. Mientras los datos son pequeños también hay una copia rápida en el almacenamiento web (`localStorage`), que tiene un límite de ~10 MB; al pasar de ~4 MB la app deja de usarlo y todo queda solo en el archivo (`gp.data.store = "file"`). Mientras el archivo se lee al abrir, la app no permite guardar, para no pisar nada.
+- **Copias automáticas en archivos** (carpeta `copias/`, máximo 6): una diaria, antes de cada actualización, antes de migrar y antes de restaurar. Se ven y restauran en *Configuración → Copias automáticas*.
 - **Datos dañados no se borran:** si un dato no se puede leer, se aparta y se recupera desde la última copia.
 - **Migraciones solo agregan:** si una versión futura cambia el formato de los datos, se hace con una función en `MIGRATIONS` que agrega campos y nunca borra clientes, préstamos ni pagos.
 - **Respaldo de Android activado** (`allowBackup`): Android puede guardar los datos de la app en la cuenta de Google del teléfono.
+
+### Pruebas (obligatorias antes de publicar)
+`npm test` corre `tests/core.test.js`. Incluye:
+- **Migración de datos reales:** `tests/fixtures/datos-v118.json` se generó con el código de la versión 1.0.118. Toda versión nueva debe abrir esos datos y calcular exactamente los mismos saldos, cuotas y fechas. **No modificar ese archivo.**
+- **Almacenamiento en archivo:** datos grandes pasan a archivo, se recuperan al reabrir y sobreviven a un archivo principal dañado.
 
 ## Estructura
 - `www/` contiene la app (HTML/CSS/JS sin frameworks). Los scripts se cargan en este orden:

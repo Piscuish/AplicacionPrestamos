@@ -282,5 +282,7 @@
       if (U && $("#screen-" + current) && !$("#screen-" + current).hidden) U.notifyAppReady();
     } catch (e) { /* navegador */ }
   };
-  Promise.race([window.GP.ready(), new Promise((r) => setTimeout(r, 4000))]).then(start, () => start());
+  // Si los datos viven en el archivo, se espera a leerlos (sin límite de tiempo) antes de mostrar nada.
+  const readyP = window.GP.ready();
+  (window.GP.storage.pending ? readyP : Promise.race([readyP, new Promise((r) => setTimeout(r, 4000))])).then(start, () => start());
 })();

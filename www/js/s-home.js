@@ -27,6 +27,8 @@
     const fToday = canFin ? G.finance(G.period("dia")) : null;
     const col = U.myCollections(t);
     const exp = col.reduce((s, r) => s + r.owed, 0), rec = col.reduce((s, r) => s + r.received, 0), pend = col.reduce((s, r) => s + r.pending, 0);
+    // Separar lo que vence HOY de lo que viene atrasado de días anteriores
+    const dueToday = col.reduce((s, r) => s + (r.expected || 0), 0), late = col.reduce((s, r) => s + Math.max(0, r.overdue || 0), 0);
     const S0 = G.state(); const vis = G.visibleClientIds();
     const mine = S0.clients.filter((x) => !vis || vis.has(x.client.id));
     const empty = !G.data.clients.length;
@@ -65,11 +67,13 @@
           </details></div>` : ""}
         ${empty ? C.empty("users", "Aún no tienes clientes", "Empieza registrando el primero y luego crea su préstamo.", G.can("cliente.editar") ? `<button class="btn btn-primary" ${goAttr("clienteForm", {})}>${ic("plus")}Nuevo cliente</button>` : "") : `
         ${C.section("Cobros de hoy", `<button class="h-link" data-tab="cobros">Ver todos</button>`, col.length ? `
-          <div class="card" style="padding:12px 14px"><div class="grid2" style="grid-template-columns:repeat(3,1fr)">
-            <div><div class="kpi-label">Esperado</div><div class="strong tnum">${money(exp)}</div></div>
-            <div><div class="kpi-label">Recibido</div><div class="strong tnum green">${money(rec)}</div></div>
-            <div><div class="kpi-label">Falta</div><div class="strong tnum ${pend ? "red" : ""}">${money(pend)}</div></div></div>
-            <div style="margin-top:10px">${C.progress(exp ? rec / exp : 0)}</div></div>
+          <div class="card" style="padding:12px 14px"><div class="grid2">
+            <div><div class="kpi-label">Vence hoy</div><div class="strong tnum">${money(dueToday)}</div></div>
+            <div><div class="kpi-label">Atrasado</div><div class="strong tnum ${late ? "red" : ""}">${money(late)}</div></div>
+            <div><div class="kpi-label">Recibido hoy</div><div class="strong tnum green">${money(rec)}</div></div>
+            <div><div class="kpi-label">Falta por cobrar</div><div class="strong tnum ${pend ? "amber" : ""}">${money(pend)}</div></div></div>
+            <div style="margin-top:10px">${C.progress(exp ? rec / exp : 0)}</div>
+            <p class="small muted" style="margin:6px 0 0">Total a cobrar hoy (hoy + atrasado): <b class="tnum">${money(exp)}</b></p></div>
           <div class="list">${col.slice(0, 5).map((r) => `<button class="item" ${goAttr("cliente", { id: r.clientId })}>${avatar(r.x.client)}<div class="grow"><div class="name">${esc(r.x.client.name)}</div><div class="sub">Debe ${money(r.owed)}${r.received ? " · recibió " + money(r.received) : ""}</div></div><div class="right">${C.badge(statusTone(r.status), U.colLabel(r.status))}${r.pending ? `<span class="amount small">${money(r.pending)}</span>` : ""}</div></button>`).join("")}</div>
           ${col.length > 5 ? `<button class="btn btn-soft" data-tab="cobros">Ver los ${col.length} cobros de hoy</button>` : ""}`
           : `<div class="card">${C.empty("checkcircle", "Sin cobros para hoy", G.noPayReason(t) ? esc(G.noPayReason(t)) : "No hay cuotas que venzan hoy.")}</div>`)}
@@ -104,7 +108,7 @@
     const it = (perm, name, icon, tone, label, sub) => (!perm || G.can(perm)) ? `<button class="item" ${goAttr(name)}><span class="lead-ico t-${tone}">${ic(icon)}</span><div class="grow"><div class="name">${label}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>${ic("right", "chev")}</button>` : "";
     const group = (title, items) => { const h = items.join(""); return h ? `<div class="menu-group"><h3>${title}</h3><div class="list">${h}</div></div>` : ""; };
     return {
-      html: appbar({ title: "Más" }) + `<main class="body">
+      html: appbar({ back: U.stack.length > 1, title: "Más" }) + `<main class="body">
         <div class="card row"><div class="mini-logo" style="width:48px;height:48px">${logoHtml()}</div><div class="grow"><div class="strong ellipsis">${esc(cfg().company || "")}</div><div class="small muted">${esc(s ? s.name : "")} · ${esc((G.ROLES[s && s.role] || {}).label || "")}</div></div></div>
         ${group("Operación", [it(null, "prestamos", "layers", "blue", "Préstamos", "Activos, vencidos y finalizados"), it(null, "calendario", "calendar", "blue", "Calendario de cobros"), it("pago.registrar", "recordatorios", "whatsapp", "green", "Recordatorios", "Avisos de cobro por WhatsApp")])}
         ${group("Organización", [it("ver.todo", "carteras", "folder", "violet", "Carteras", "Agrupa clientes y préstamos"), it(null, "rutas", "route", "violet", "Rutas de cobro", "Recorridos y visitas")])}

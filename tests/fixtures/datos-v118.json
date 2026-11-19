@@ -1,0 +1,748 @@
+{
+ "about": "Datos creados con la versión 1.0.118 (esquema 1) y los saldos que esa versión calculó. NO MODIFICAR: la prueba de migración compara contra esto.",
+ "generatedWith": "1.0.118",
+ "data": {
+  "clients": [
+   {
+    "name": "Carlos Rodríguez",
+    "phone": "3124567890",
+    "doc": "1234567890",
+    "address": "Cra 23 #56-42",
+    "id": "mwo1x8i1lqma4",
+    "createdAt": "2026-11-19"
+   },
+   {
+    "name": "Andrés López",
+    "phone": "3219876543",
+    "id": "mwo1x8i1phwez",
+    "createdAt": "2026-11-19"
+   },
+   {
+    "name": "María Vargas",
+    "id": "mwo1x8i1qls2x",
+    "createdAt": "2026-11-19"
+   },
+   {
+    "name": "Juan Pérez",
+    "doc": "99887766",
+    "id": "mwo1x8i1i3mfs",
+    "createdAt": "2026-11-19"
+   }
+  ],
+  "loans": [
+   {
+    "clientId": "mwo1x8i1lqma4",
+    "amount": 1000000,
+    "rate": 10,
+    "count": 4,
+    "freq": "semanal",
+    "startDate": "2026-02-02",
+    "id": "mwo1x8i1kdl88",
+    "num": "P-0001",
+    "charges": [
+     {
+      "cuota": 2,
+      "amount": 27500,
+      "date": "2026-02-18"
+     },
+     {
+      "cuota": 3,
+      "amount": 27500,
+      "date": "2026-02-25"
+     },
+     {
+      "cuota": 4,
+      "amount": 27500,
+      "date": "2026-03-04"
+     }
+    ],
+    "skipDates": [],
+    "createdAt": "2026-11-19T21:17:43.369Z"
+   },
+   {
+    "clientId": "mwo1x8i1phwez",
+    "amount": 600000,
+    "rate": 20,
+    "count": 20,
+    "freq": "diaria",
+    "startDate": "2026-03-02",
+    "id": "mwo1x8i1t5fgy",
+    "num": "P-0002",
+    "charges": [
+     {
+      "cuota": 1,
+      "amount": 3600,
+      "date": "2026-03-05"
+     },
+     {
+      "cuota": 2,
+      "amount": 3600,
+      "date": "2026-03-06"
+     },
+     {
+      "cuota": 3,
+      "amount": 3600,
+      "date": "2026-03-07"
+     },
+     {
+      "cuota": 4,
+      "amount": 3600,
+      "date": "2026-03-08"
+     },
+     {
+      "cuota": 5,
+      "amount": 3600,
+      "date": "2026-03-09"
+     },
+     {
+      "cuota": 6,
+      "amount": 3600,
+      "date": "2026-03-11"
+     },
+     {
+      "cuota": 7,
+      "amount": 3600,
+      "date": "2026-03-13"
+     },
+     {
+      "cuota": 8,
+      "amount": 3600,
+      "date": "2026-03-14"
+     },
+     {
+      "cuota": 9,
+      "amount": 3600,
+      "date": "2026-03-15"
+     },
+     {
+      "cuota": 10,
+      "amount": 3600,
+      "date": "2026-03-16"
+     },
+     {
+      "cuota": 11,
+      "amount": 3600,
+      "date": "2026-03-18"
+     },
+     {
+      "cuota": 12,
+      "amount": 3600,
+      "date": "2026-03-19"
+     },
+     {
+      "cuota": 13,
+      "amount": 3600,
+      "date": "2026-03-20"
+     },
+     {
+      "cuota": 14,
+      "amount": 3600,
+      "date": "2026-03-21"
+     },
+     {
+      "cuota": 15,
+      "amount": 3600,
+      "date": "2026-03-22"
+     },
+     {
+      "cuota": 16,
+      "amount": 3600,
+      "date": "2026-03-23"
+     },
+     {
+      "cuota": 17,
+      "amount": 3600,
+      "date": "2026-03-26"
+     },
+     {
+      "cuota": 18,
+      "amount": 3600,
+      "date": "2026-03-27"
+     },
+     {
+      "cuota": 19,
+      "amount": 3600,
+      "date": "2026-03-28"
+     },
+     {
+      "cuota": 20,
+      "amount": 3600,
+      "date": "2026-03-29"
+     }
+    ],
+    "skipDates": [
+     "2026-03-18"
+    ],
+    "createdAt": "2026-11-19T21:17:43.369Z"
+   },
+   {
+    "clientId": "mwo1x8i1qls2x",
+    "amount": 2000000,
+    "rate": 15,
+    "count": 3,
+    "freq": "mensual",
+    "startDate": "2026-01-31",
+    "id": "mwo1x8i1fkkxg",
+    "num": "P-0003",
+    "charges": [
+     {
+      "cuota": 2,
+      "amount": 76667,
+      "date": "2026-04-02"
+     },
+     {
+      "cuota": 3,
+      "amount": 76667,
+      "date": "2026-05-02"
+     }
+    ],
+    "skipDates": [],
+    "createdAt": "2026-11-19T21:17:43.369Z",
+    "waived": [
+     1
+    ]
+   },
+   {
+    "clientId": "mwo1x8i1i3mfs",
+    "amount": 300000,
+    "rate": 10,
+    "count": 2,
+    "freq": "quincenal",
+    "startDate": "2026-04-20",
+    "id": "mwo1x8i1a1mue",
+    "num": "P-0004",
+    "charges": [
+     {
+      "cuota": 1,
+      "amount": 16500,
+      "date": "2026-05-07"
+     },
+     {
+      "cuota": 2,
+      "amount": 16500,
+      "date": "2026-05-22"
+     }
+    ],
+    "skipDates": [],
+    "createdAt": "2026-11-19T21:17:43.369Z"
+   },
+   {
+    "clientId": "mwo1x8i1lqma4",
+    "amount": 500000,
+    "rate": 12.5,
+    "count": 5,
+    "freq": "semanal",
+    "startDate": "2026-04-27",
+    "id": "mwo1x8i1a8imj",
+    "num": "P-0005",
+    "charges": [
+     {
+      "cuota": 1,
+      "amount": 11250,
+      "date": "2026-05-06"
+     },
+     {
+      "cuota": 2,
+      "amount": 11250,
+      "date": "2026-05-13"
+     },
+     {
+      "cuota": 3,
+      "amount": 11250,
+      "date": "2026-05-21"
+     },
+     {
+      "cuota": 4,
+      "amount": 11250,
+      "date": "2026-05-27"
+     },
+     {
+      "cuota": 5,
+      "amount": 11250,
+      "date": "2026-06-03"
+     }
+    ],
+    "skipDates": [
+     "2026-05-11"
+    ],
+    "createdAt": "2026-11-19T21:17:43.369Z"
+   }
+  ],
+  "payments": [
+   {
+    "loanId": "mwo1x8i1kdl88",
+    "amount": 275000,
+    "date": "2026-02-09",
+    "method": "Efectivo",
+    "id": "mwo1x8i1bt5lj",
+    "createdAt": "2026-11-19T21:17:43.369Z"
+   },
+   {
+    "loanId": "mwo1x8i1kdl88",
+    "amount": 150000,
+    "date": "2026-02-18",
+    "method": "Nequi",
+    "note": "parcial",
+    "id": "mwo1x8i7c2h5c",
+    "createdAt": "2026-11-19T21:17:43.375Z"
+   },
+   {
+    "loanId": "mwo1x8i1kdl88",
+    "amount": 400000,
+    "date": "2026-03-01",
+    "method": "Efectivo",
+    "id": "mwo1x8i8eshug",
+    "createdAt": "2026-11-19T21:17:43.376Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-03",
+    "method": "Efectivo",
+    "id": "mwo1x8i8i2gcc",
+    "createdAt": "2026-11-19T21:17:43.376Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-04",
+    "method": "Efectivo",
+    "id": "mwo1x8i9jsnps",
+    "createdAt": "2026-11-19T21:17:43.377Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-05",
+    "method": "Efectivo",
+    "id": "mwo1x8i9ihapl",
+    "createdAt": "2026-11-19T21:17:43.377Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-06",
+    "method": "Efectivo",
+    "id": "mwo1x8i9t7a7f",
+    "createdAt": "2026-11-19T21:17:43.377Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-07",
+    "method": "Efectivo",
+    "id": "mwo1x8i93h95c",
+    "createdAt": "2026-11-19T21:17:43.377Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-08",
+    "method": "Efectivo",
+    "id": "mwo1x8iamfzki",
+    "createdAt": "2026-11-19T21:17:43.378Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-09",
+    "method": "Efectivo",
+    "id": "mwo1x8iazlrs3",
+    "createdAt": "2026-11-19T21:17:43.378Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-10",
+    "method": "Efectivo",
+    "id": "mwo1x8ibo9t5m",
+    "createdAt": "2026-11-19T21:17:43.379Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-11",
+    "method": "Efectivo",
+    "id": "mwo1x8ib3oddc",
+    "createdAt": "2026-11-19T21:17:43.379Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-12",
+    "method": "Efectivo",
+    "id": "mwo1x8ibyfocx",
+    "createdAt": "2026-11-19T21:17:43.379Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-13",
+    "method": "Efectivo",
+    "id": "mwo1x8ibcgfyg",
+    "createdAt": "2026-11-19T21:17:43.379Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 36000,
+    "date": "2026-03-14",
+    "method": "Efectivo",
+    "id": "mwo1x8ib2ehck",
+    "createdAt": "2026-11-19T21:17:43.379Z"
+   },
+   {
+    "loanId": "mwo1x8i1t5fgy",
+    "amount": 0,
+    "type": "nopago",
+    "date": "2026-03-16",
+    "note": "no estaba",
+    "id": "mwo1x8icdksjp",
+    "createdAt": "2026-11-19T21:17:43.380Z"
+   },
+   {
+    "loanId": "mwo1x8i1fkkxg",
+    "amount": 766667,
+    "date": "2026-03-05",
+    "method": "Transferencia",
+    "id": "mwo1x8icsdz06",
+    "createdAt": "2026-11-19T21:17:43.380Z"
+   },
+   {
+    "loanId": "mwo1x8i1fkkxg",
+    "amount": 766667,
+    "date": "2026-04-02",
+    "method": "Transferencia",
+    "id": "mwo1x8icmqefh",
+    "createdAt": "2026-11-19T21:17:43.380Z"
+   },
+   {
+    "loanId": "mwo1x8i1a1mue",
+    "amount": 330000,
+    "date": "2026-05-20",
+    "method": "Efectivo",
+    "id": "mwo1x8ic07y8w",
+    "createdAt": "2026-11-19T21:17:43.380Z"
+   }
+  ],
+  "movements": [
+   {
+    "type": "out",
+    "concept": "Transporte",
+    "amount": 50000,
+    "date": "2026-03-02",
+    "detail": "moto",
+    "id": "mwo1x8ide2c52",
+    "createdAt": "2026-11-19T21:17:43.381Z"
+   },
+   {
+    "type": "in",
+    "concept": "Aporte de capital",
+    "amount": 3000000,
+    "date": "2026-01-02",
+    "id": "mwo1x8idfvi6s",
+    "createdAt": "2026-11-19T21:17:43.381Z"
+   },
+   {
+    "type": "in",
+    "concept": "Otro ingreso",
+    "amount": 20000,
+    "date": "2026-03-20",
+    "id": "mwo1x8id0kxt0",
+    "createdAt": "2026-11-19T21:17:43.381Z"
+   }
+  ],
+  "settings": {
+   "mora": {
+    "enabled": true,
+    "type": "percent",
+    "value": 10,
+    "graceDays": 1,
+    "since": "2026-01-01"
+   },
+   "noPay": {
+    "weekdays": [
+     0
+    ],
+    "dates": [
+     {
+      "date": "2026-03-10",
+      "note": "Festivo del pueblo"
+     }
+    ],
+    "colombia": true,
+    "colombiaOff": [
+     "2026-05-01"
+    ]
+   }
+  },
+  "seq": {
+   "loan": 5
+  },
+  "schema": 1
+ },
+ "expected": {
+  "clients": 4,
+  "payments": 19,
+  "movements": [
+   "in:20000",
+   "in:3000000",
+   "out:50000"
+  ],
+  "loans": [
+   {
+    "num": "P-0001",
+    "total": 1182500,
+    "paid": 825000,
+    "balance": 357500,
+    "charges": 82500,
+    "interest": 100000,
+    "cuotas": [
+     [
+      1,
+      "2026-02-09",
+      275000,
+      275000
+     ],
+     [
+      2,
+      "2026-02-16",
+      302500,
+      302500
+     ],
+     [
+      3,
+      "2026-02-23",
+      302500,
+      247500
+     ],
+     [
+      4,
+      "2026-03-02",
+      302500,
+      0
+     ]
+    ]
+   },
+   {
+    "num": "P-0002",
+    "total": 792000,
+    "paid": 432000,
+    "balance": 360000,
+    "charges": 72000,
+    "interest": 120000,
+    "cuotas": [
+     [
+      1,
+      "2026-03-03",
+      39600,
+      39600
+     ],
+     [
+      2,
+      "2026-03-04",
+      39600,
+      39600
+     ],
+     [
+      3,
+      "2026-03-05",
+      39600,
+      39600
+     ],
+     [
+      4,
+      "2026-03-06",
+      39600,
+      39600
+     ],
+     [
+      5,
+      "2026-03-07",
+      39600,
+      39600
+     ],
+     [
+      6,
+      "2026-03-09",
+      39600,
+      39600
+     ],
+     [
+      7,
+      "2026-03-11",
+      39600,
+      39600
+     ],
+     [
+      8,
+      "2026-03-12",
+      39600,
+      39600
+     ],
+     [
+      9,
+      "2026-03-13",
+      39600,
+      39600
+     ],
+     [
+      10,
+      "2026-03-14",
+      39600,
+      39600
+     ],
+     [
+      11,
+      "2026-03-16",
+      39600,
+      36000
+     ],
+     [
+      12,
+      "2026-03-17",
+      39600,
+      0
+     ],
+     [
+      13,
+      "2026-03-19",
+      39600,
+      0
+     ],
+     [
+      14,
+      "2026-03-20",
+      39600,
+      0
+     ],
+     [
+      15,
+      "2026-03-21",
+      39600,
+      0
+     ],
+     [
+      16,
+      "2026-03-24",
+      39600,
+      0
+     ],
+     [
+      17,
+      "2026-03-25",
+      39600,
+      0
+     ],
+     [
+      18,
+      "2026-03-26",
+      39600,
+      0
+     ],
+     [
+      19,
+      "2026-03-27",
+      39600,
+      0
+     ],
+     [
+      20,
+      "2026-03-28",
+      39600,
+      0
+     ]
+    ]
+   },
+   {
+    "num": "P-0003",
+    "total": 2453334,
+    "paid": 1533334,
+    "balance": 920000,
+    "charges": 153334,
+    "interest": 300000,
+    "cuotas": [
+     [
+      1,
+      "2026-02-28",
+      766666,
+      766666
+     ],
+     [
+      2,
+      "2026-03-31",
+      843333,
+      766668
+     ],
+     [
+      3,
+      "2026-04-30",
+      843335,
+      0
+     ]
+    ]
+   },
+   {
+    "num": "P-0004",
+    "total": 363000,
+    "paid": 330000,
+    "balance": 33000,
+    "charges": 33000,
+    "interest": 30000,
+    "cuotas": [
+     [
+      1,
+      "2026-05-05",
+      181500,
+      181500
+     ],
+     [
+      2,
+      "2026-05-20",
+      181500,
+      148500
+     ]
+    ]
+   },
+   {
+    "num": "P-0005",
+    "total": 618750,
+    "paid": 0,
+    "balance": 618750,
+    "charges": 56250,
+    "interest": 62500,
+    "cuotas": [
+     [
+      1,
+      "2026-05-04",
+      123750,
+      0
+     ],
+     [
+      2,
+      "2026-05-12",
+      123750,
+      0
+     ],
+     [
+      3,
+      "2026-05-19",
+      123750,
+      0
+     ],
+     [
+      4,
+      "2026-05-25",
+      123750,
+      0
+     ],
+     [
+      5,
+      "2026-06-01",
+      123750,
+      0
+     ]
+    ]
+   }
+  ]
+ }
+}

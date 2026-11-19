@@ -9,7 +9,7 @@
 
   // ================= Barra inferior y botón central =================
   function buildTabbar() {
-    const t = { inicio: ["home", "Inicio"], clientes: ["users", "Clientes"], cobros: ["calendar", "Cobros"], mas: ["grid", "Más"] };
+    const t = { inicio: ["home", "Inicio"], clientes: ["users", "Clientes"], cobros: ["calendar", "Cobros"], finanzas: ["chart", "Finanzas"], mas: ["grid", "Más"] };
     $$(".tab").forEach((b) => { const [i, l] = t[b.dataset.tab]; b.innerHTML = ic(i) + `<span>${l}</span>`; b.setAttribute("aria-label", l); });
     $("#fab").innerHTML = ic("plus"); $("#fab").onclick = fabSheet;
   }

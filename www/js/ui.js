@@ -206,7 +206,7 @@
   // ================= Navegación =================
   const Screens = {};
   let stack = [];
-  const TABS = ["inicio", "clientes", "cobros", "mas"];
+  const TABS = ["inicio", "clientes", "cobros", "finanzas", "mas"]; // "mas" se abre con el botón ☰
   function go(name, params, replace) {
     if (stack.length) stack[stack.length - 1].scroll = window.scrollY;
     if (replace) stack.pop();
@@ -255,7 +255,9 @@
   function setParam(o, keepScroll) { Object.assign(cur().params, o); if (keepScroll) refresh(); else render(true); }
 
   function appbar(o) {
-    const left = o.back ? `<button class="icon-btn" data-back aria-label="Atrás">${ic("back")}</button>` : "";
+    const onRootTab = stack.length === 1 && TABS.includes(stack[0].name) && stack[0].name !== "mas";
+    const left = o.back ? `<button class="icon-btn" data-back aria-label="Atrás">${ic("back")}</button>`
+      : onRootTab ? `<button class="icon-btn" data-go="mas" aria-label="Menú: más opciones">${ic("menu")}</button>` : "";
     return `<header class="appbar">${left}<div class="appbar-title">${o.brand || `<h1>${esc(o.title)}</h1>${o.sub ? `<p>${esc(o.sub)}</p>` : ""}`}</div>${o.right || ""}</header>`;
   }
 

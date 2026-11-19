@@ -16,7 +16,14 @@
   function toISO(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function parseISO(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
   function today() { return toISO(new Date()); }
-  function addDays(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d); }
+  // Memoria de fechas: los cálculos de cuotas repiten mucho las mismas operaciones.
+  const addMemo = new Map(), wdMemo = new Map();
+  function addDays(iso, n) {
+    const k = iso + "|" + n; let r = addMemo.get(k);
+    if (r === undefined) { const d = parseISO(iso); d.setDate(d.getDate() + n); r = toISO(d); if (addMemo.size > 50000) addMemo.clear(); addMemo.set(k, r); }
+    return r;
+  }
+  function weekday(iso) { let w = wdMemo.get(iso); if (w === undefined) { w = parseISO(iso).getDay(); if (wdMemo.size > 20000) wdMemo.clear(); wdMemo.set(iso, w); } return w; }
   function addMonths(iso, n) {
     const d = parseISO(iso); const day = d.getDate();
     d.setDate(1); d.setMonth(d.getMonth() + n);
@@ -77,6 +84,7 @@
      5. Si un archivo de datos está dañado, NO se sobrescribe: se aparta
         y se intenta recuperar desde el espejo o las copias.
      ===================================================================== */
+  const GP_state = { lastPersist: null, persistError: null, loadedFrom: null, pauseHook: false };
   const SCHEMA = 2;
   const MIGRATIONS = {
     /* 2: rediseño. SOLO AGREGA campos y listas nuevas; no borra ni cambia montos.
@@ -111,19 +119,34 @@
     out.schema = SCHEMA;
     return out;
   }
-  /* Antes de migrar datos de un esquema anterior se guarda una copia intacta
-     (tal cual estaban) en las copias automáticas. */
-  function snapshotRaw(obj, reason) {
-    try {
-      const list = snapshots();
-      list.unshift({ at: new Date().toISOString(), reason, data: obj });
-      for (let n = 6; n > 0; n--) { try { localStorage.setItem(SNAP_KEY_(), JSON.stringify(list.slice(0, n))); return true; } catch (e) { /* espacio */ } }
-    } catch (e) { /* nunca bloquear */ }
-    return false;
-  }
+  /* =====================================================================
+     DÓNDE SE GUARDAN LOS DATOS
+     - En el teléfono, el archivo interno gp-data.json es el lugar PRINCIPAL y no
+       tiene límite de tamaño. Se escribe de forma segura: primero un archivo
+       temporal y luego se reemplaza, guardando además la versión anterior
+       (gp-data.prev.json). Al abrir se usa el más reciente que se pueda leer.
+     - Mientras los datos son pequeños, también se guarda una copia rápida en el
+       almacenamiento web (localStorage). Ese espacio tiene un límite de ~10 MB,
+       así que al pasar de LOCAL_MAX se deja de usar y todo queda en el archivo.
+     - Las copias automáticas van en archivos (carpeta "copias"), no en localStorage.
+     - En el navegador (sin teléfono) se usa solo localStorage, como antes.
+     ===================================================================== */
+  const STORE_KEY = "gp.data.store";          // "file" = los datos viven solo en el archivo
+  const LOCAL_MAX = 2000000;                   // caracteres (~4 MB) máximos en localStorage
+  const MIRROR_FILE = "gp-data.json", MIRROR_TMP = "gp-data.tmp.json", MIRROR_PREV = "gp-data.prev.json";
+  const SNAP_DIR = "copias", SNAP_INDEX = "gp.backup.index", SNAP_MAX = 6;
+  const FS = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Filesystem; };
+  const fileMode = () => !!FS() && localStorage.getItem(STORE_KEY) === "file";
+  let pendingFile = false;   // en modo archivo, los datos aún no se han leído: no se permite guardar
+  let toFile = false;        // los datos ya no caben en localStorage: pasar a modo archivo
+  let damagedRaw = null;
+
+  /* Antes de migrar datos de un esquema anterior se guarda una copia intacta. */
+  function snapshotRaw(obj, reason) { try { storeSnapshot({ at: new Date().toISOString(), reason, data: obj }); return true; } catch (e) { return false; } }
   let preMigration = null;
   let data = load();
   function load() {
+    if (fileMode()) { pendingFile = true; return EMPTY(); }   // se carga del archivo en ready()
     const raw = localStorage.getItem(DATA_KEY);
     if (!raw) return EMPTY();
     try {
@@ -137,53 +160,123 @@
       }
     } catch (e) { /* dañado */ }
     // Nunca sobrescribir datos que no se pudieron leer: se apartan.
-    try { localStorage.setItem("gp.data.damaged." + Date.now(), raw); } catch (e) { /* lleno */ }
+    try { localStorage.setItem("gp.data.damaged." + Date.now(), raw); } catch (e) { damagedRaw = raw; }
+    if (FS()) { pendingFile = true; return EMPTY(); }   // en el teléfono: recuperar del archivo en ready()
     const b = latestSnapshot();
     if (b) { try { return normalize(JSON.parse(b).data); } catch (e) { /* sigue */ } }
     return EMPTY();
   }
   function isEmpty(d) { return !d.clients.length && !d.loans.length && !d.payments.length && !d.movements.length; }
   function save() {
-    data.schema = SCHEMA;
-    localStorage.setItem(DATA_KEY, JSON.stringify(data)); cache = null;
-    mirrorSoon();
-  }
-
-  // ----- Espejo en archivo interno de la app (solo en el teléfono) -----
-  const MIRROR_FILE = "gp-data.json";
-  const FS = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Filesystem; };
-  let mirrorT = null;
-  function mirrorSoon() { clearTimeout(mirrorT); mirrorT = setTimeout(mirrorNow, 600); }
-  async function mirrorNow() {
-    const F = FS(); if (!F) return;
-    const cfg = Config.get();
-    if (!cfg && isEmpty(data)) return; // no pisar un espejo bueno con nada
-    try {
-      await F.writeFile({ path: MIRROR_FILE, directory: "DATA", encoding: "utf8",
-        data: JSON.stringify({ app: "GestionPrestamos", savedAt: new Date().toISOString(), config: cfg, data }) });
-    } catch (e) { /* se reintenta en el próximo guardado */ }
-  }
-  async function readMirror() {
-    const F = FS(); if (!F) return null;
-    try { const r = await F.readFile({ path: MIRROR_FILE, directory: "DATA", encoding: "utf8" }); return JSON.parse(r.data); }
-    catch (e) { return null; }
-  }
-
-  // ----- Copias automáticas (en el almacenamiento de la app) -----
-  function SNAP_KEY_() { return "gp.backup.auto"; }
-  function snapshots() { try { return JSON.parse(localStorage.getItem(SNAP_KEY_())) || []; } catch (e) { return []; } }
-  function latestSnapshot() { const s = snapshots(); return s.length ? JSON.stringify(s[0]) : null; }
-  function snapshot(reason) {
-    if (isEmpty(data)) return;
-    const list = snapshots();
-    const item = { at: new Date().toISOString(), reason, data: JSON.parse(JSON.stringify(data)) };
-    // una por día + todas las de actualización, máximo 5
-    const day = item.at.slice(0, 10);
-    const filtered = list.filter((x) => !(x.reason === "diaria" && reason === "diaria" && x.at.slice(0, 10) === day));
-    filtered.unshift(item);
-    for (let n = 5; n > 1; n--) {
-      try { localStorage.setItem(SNAP_KEY_(), JSON.stringify(filtered.slice(0, n))); return; } catch (e) { /* sin espacio: guardar menos */ }
+    if (pendingFile) throw new Error("Los datos aún se están cargando. Espera un momento e intenta de nuevo.");
+    data.schema = SCHEMA; cache = null; dataVer++;
+    if (!fileMode()) {
+      const json = JSON.stringify(data);
+      let ok = false;
+      if (json.length <= LOCAL_MAX || !FS()) {
+        try { localStorage.setItem(DATA_KEY, json); ok = true; }
+        catch (e) { if (!FS()) throw new Error("El almacenamiento del navegador está lleno. Guarda una copia de seguridad."); }
+      }
+      if (!ok) toFile = true;
     }
+    persistSoon(toFile ? 0 : 400);
+  }
+
+  // ----- Archivo principal (solo en el teléfono) -----
+  let persistT = null, persisting = null, persistAgain = false;
+  function persistSoon(ms) { if (!FS()) return; clearTimeout(persistT); persistT = setTimeout(persistNow, ms == null ? 400 : ms); }
+  async function persistNow() {
+    const F = FS(); if (!F || pendingFile) return;
+    clearTimeout(persistT);
+    if (persisting) { persistAgain = true; return persisting; }
+    persisting = (async () => {
+      do {
+        persistAgain = false;
+        const cfg = Config.get();
+        if (!cfg && isEmpty(data)) break; // no pisar un archivo bueno con nada
+        const body = JSON.stringify({ app: "GestionPrestamos", savedAt: new Date().toISOString(), config: cfg, data });
+        try {
+          await F.writeFile({ path: MIRROR_TMP, directory: "DATA", encoding: "utf8", data: body });
+          try { await F.deleteFile({ path: MIRROR_PREV, directory: "DATA" }); } catch (e) { /* no existía */ }
+          try { await F.rename({ from: MIRROR_FILE, to: MIRROR_PREV, directory: "DATA" }); } catch (e) { /* primera vez */ }
+          await F.rename({ from: MIRROR_TMP, to: MIRROR_FILE, directory: "DATA" });
+          GP_state.lastPersist = new Date().toISOString(); GP_state.persistError = null;
+          if (toFile || (!fileMode() && body.length > LOCAL_MAX)) {
+            localStorage.setItem(STORE_KEY, "file"); localStorage.removeItem(DATA_KEY); toFile = false;
+          }
+        } catch (e) { GP_state.persistError = String((e && e.message) || e); }
+      } while (persistAgain);
+    })();
+    try { await persisting; } finally { persisting = null; }
+  }
+  const mirrorNow = persistNow;
+  const mirrorSoon = () => persistSoon(400);
+  /* Lee el archivo más reciente que se pueda abrir (principal, temporal o anterior). */
+  async function readBest() {
+    const F = FS(); if (!F) return null;
+    let best = null;
+    for (const path of [MIRROR_FILE, MIRROR_TMP, MIRROR_PREV]) {
+      try {
+        const r = await F.readFile({ path, directory: "DATA", encoding: "utf8" });
+        const o = JSON.parse(r.data);
+        if (o && o.data && Array.isArray(o.data.clients) && (!best || String(o.savedAt || "") > String(best.savedAt || ""))) best = o;
+      } catch (e) { /* no existe o dañado */ }
+    }
+    return best;
+  }
+  const readMirror = readBest;
+
+  // ----- Copias automáticas -----
+  function SNAP_KEY_() { return "gp.backup.auto"; }   // copias antiguas (o navegador): en localStorage
+  function legacySnaps() { try { return JSON.parse(localStorage.getItem(SNAP_KEY_())) || []; } catch (e) { return []; } }
+  function snapIndex() { try { return JSON.parse(localStorage.getItem(SNAP_INDEX)) || []; } catch (e) { return []; } }
+  const countsOf = (d) => ({ clients: (d.clients || []).length, loans: (d.loans || []).length, payments: (d.payments || []).length });
+  /* Lista para mostrar: { at, reason, counts, file? , data? } (más reciente primero). */
+  function snapshots() {
+    const files = snapIndex().map((x) => ({ at: x.at, reason: x.reason, counts: x.counts || {}, file: x.file }));
+    const legacy = legacySnaps().map((x) => ({ at: x.at, reason: x.reason, counts: countsOf(x.data || {}), data: x.data }));
+    return files.concat(legacy).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  }
+  function latestSnapshot() { const s = legacySnaps(); return s.length ? JSON.stringify(s[0]) : null; }
+  function storeSnapshot(item) {
+    const F = FS();
+    if (!F) {   // navegador: como antes, en localStorage (máximo 5)
+      const list = legacySnaps(); const day = item.at.slice(0, 10);
+      const filtered = list.filter((x) => !(x.reason === "diaria" && item.reason === "diaria" && x.at.slice(0, 10) === day));
+      filtered.unshift(item);
+      for (let n = 5; n > 0; n--) { try { localStorage.setItem(SNAP_KEY_(), JSON.stringify(filtered.slice(0, n))); return; } catch (e) { /* sin espacio */ } }
+      return;
+    }
+    const file = SNAP_DIR + "/copia-" + item.at.replace(/[:.]/g, "-") + "-" + Math.random().toString(36).slice(2, 6) + ".json";
+    const day = item.at.slice(0, 10);
+    let idx = snapIndex();
+    const drop = [];
+    idx = idx.filter((x) => { const same = x.reason === "diaria" && item.reason === "diaria" && x.at.slice(0, 10) === day; if (same) drop.push(x.file); return !same; });
+    idx.unshift({ at: item.at, reason: item.reason, file, counts: countsOf(item.data) });
+    while (idx.length > SNAP_MAX) drop.push(idx.pop().file);
+    localStorage.setItem(SNAP_INDEX, JSON.stringify(idx));
+    const body = JSON.stringify({ app: "GestionPrestamos", at: item.at, reason: item.reason, data: item.data });
+    return (async () => {
+      try { await F.writeFile({ path: file, directory: "DATA", encoding: "utf8", data: body, recursive: true }); }
+      catch (e) { localStorage.setItem(SNAP_INDEX, JSON.stringify(snapIndex().filter((x) => x.file !== file))); }
+      for (const f of drop) { try { await F.deleteFile({ path: f, directory: "DATA" }); } catch (e) { /* ya no estaba */ } }
+    })();
+  }
+  function snapshot(reason) {
+    if (isEmpty(data) || pendingFile) return;
+    return storeSnapshot({ at: new Date().toISOString(), reason, data: JSON.parse(JSON.stringify(data)) });
+  }
+  async function snapshotData(entry) {
+    if (entry.data) return entry.data;
+    const F = FS(); if (!F || !entry.file) return null;
+    try { const r = await F.readFile({ path: entry.file, directory: "DATA", encoding: "utf8" }); return JSON.parse(r.data).data; } catch (e) { return null; }
+  }
+  /* Pasa las copias antiguas guardadas en localStorage a archivos y libera ese espacio. */
+  async function migrateLegacySnapshots() {
+    const F = FS(); if (!F) return;
+    const old = legacySnaps(); if (!old.length) return;
+    for (const x of old.slice().reverse()) { if (x && x.data) await storeSnapshot({ at: x.at, reason: x.reason, data: x.data }); }
+    if (snapIndex().length) localStorage.removeItem(SNAP_KEY_());
   }
 
   /* ----- Versiones -----
@@ -237,25 +330,47 @@
   /* Se llama al abrir la app (antes del login). Recupera datos si hiciera falta
      y hace la copia automática cuando cambia la versión instalada. */
   async function ready() {
+    if (pendingFile) {
+      // Modo archivo (o datos web dañados): leer el archivo más reciente; si no hay, la última copia.
+      let loaded = false;
+      try {
+        const best = await readBest();
+        if (best) {
+          data = normalize(best.data); loaded = true;
+          if (!localStorage.getItem(CONFIG_KEY) && best.config) localStorage.setItem(CONFIG_KEY, JSON.stringify(best.config));
+        } else {
+          for (const e of snapshots()) { const d = await snapshotData(e); if (d && d.clients) { data = normalize(d); loaded = true; break; } }
+          const F = FS();
+          if (F) { try { await F.rename({ from: MIRROR_FILE, to: "gp-data.danado-" + Date.now() + ".json", directory: "DATA" }); } catch (e) { /* no existía */ } }
+        }
+      } catch (e) { /* sigue */ }
+      if (damagedRaw && FS()) { try { await FS().writeFile({ path: "gp-data.danado-web-" + Date.now() + ".json", directory: "DATA", encoding: "utf8", data: damagedRaw }); } catch (e) { /* sigue */ } damagedRaw = null; }
+      pendingFile = false; cache = null; GP_state.loadedFrom = loaded ? "archivo" : "vacío";
+      if (loaded && !fileMode()) persistSoon(0);
+    }
+    try {
+      const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (A && A.addListener && !GP_state.pauseHook) { GP_state.pauseHook = true; A.addListener("pause", () => { persistNow(); }); A.addListener("appStateChange", (st) => { if (st && !st.isActive) persistNow(); }); }
+    } catch (e) { /* navegador */ }
+    try { await migrateLegacySnapshots(); } catch (e) { /* sigue */ }
     if (preMigration) {
       const F = FS();
       if (F) { try { await F.writeFile({ path: "gp-data-antes-esquema-" + SCHEMA + ".json", directory: "DATA", encoding: "utf8", data: preMigration.raw }); } catch (e) { /* queda la copia automática */ } }
       // Guardar ya el formato nuevo (la copia de lo anterior quedó en Copias automáticas)
-      try { localStorage.setItem(DATA_KEY, JSON.stringify(data)); } catch (e) { /* se reintenta al guardar */ }
       preMigration = null;
+      try { save(); } catch (e) { /* se reintenta al guardar */ }
     }
     try {
-      const mirror = await readMirror();
-      const hasCfg = !!localStorage.getItem(CONFIG_KEY);
-      if (mirror && mirror.data) {
-        const mData = normalize(mirror.data);
-        const mCount = mData.clients.length + mData.loans.length + mData.payments.length;
-        const lCount = data.clients.length + data.loans.length + data.payments.length;
-        if (!hasCfg && mirror.config) localStorage.setItem(CONFIG_KEY, JSON.stringify(mirror.config));
-        if (isEmpty(data) && !isEmpty(mData)) { data = mData; localStorage.setItem(DATA_KEY, JSON.stringify(data)); cache = null; }
-        else if (mCount > lCount && lCount === 0) { data = mData; save(); }
-      } else if (!isEmpty(data) || hasCfg) {
-        mirrorNow(); // primera vez con esta protección: crear el espejo
+      if (!fileMode()) {
+        const mirror = await readBest();
+        const hasCfg = !!localStorage.getItem(CONFIG_KEY);
+        if (mirror && mirror.data) {
+          const mData = normalize(mirror.data);
+          if (!hasCfg && mirror.config) localStorage.setItem(CONFIG_KEY, JSON.stringify(mirror.config));
+          if (isEmpty(data) && !isEmpty(mData)) { data = mData; cache = null; save(); }
+        } else if (!isEmpty(data) || hasCfg) {
+          persistNow(); // primera vez: crear el archivo
+        }
       }
     } catch (e) { /* nunca bloquear el inicio */ }
     try { if (await applyPendingLive()) return "reloading"; } catch (e) { /* seguir */ }
@@ -342,7 +457,7 @@
     if (wd.length >= 7) wd = [];
     return { np, weekdays: new Set(wd), dates: new Set([...(np.dates || []).map((x) => x.date || x), ...(loanSkip || [])]) };
   }
-  function isNoPay(iso, rules) { return rules.weekdays.has(parseISO(iso).getDay()) || rules.dates.has(iso) || !!colombiaHoliday(iso, rules.np); }
+  function isNoPay(iso, rules) { return rules.weekdays.has(weekday(iso)) || rules.dates.has(iso) || !!colombiaHoliday(iso, rules.np); }
   function nextPayDay(iso, rules) { let d = iso; for (let k = 0; k < 400 && isNoPay(d, rules); k++) d = addDays(d, 1); return d; }
   function noPayReason(iso, loan) {
     const np = data.settings.noPay || {};
@@ -424,12 +539,23 @@
   /* Calcula el estado de un préstamo: los pagos se aplican en orden a las cuotas
      (si sobra, pasa a la siguiente). */
   const activePay = (x) => x.amount > 0 && !x.voided;
+  /* Índice de pagos por préstamo: evita recorrer TODOS los pagos para cada préstamo
+     (con un año de cobros diarios eran millones de comparaciones por pantalla). */
+  let payIdx = null, dataVer = 0;
+  function paysOf(loanId) {
+    if (!payIdx || payIdx.arr !== data.payments || payIdx.len !== data.payments.length || payIdx.ver !== dataVer) {
+      const m = new Map();
+      for (const x of data.payments) { let a = m.get(x.loanId); if (!a) m.set(x.loanId, (a = [])); a.push(x); }
+      payIdx = { arr: data.payments, len: data.payments.length, ver: dataVer, m };
+    }
+    return payIdx.m.get(loanId) || [];
+  }
   function computeLoan(loan, opts) {
     const t = today();
     const p = loanPlan(loan);
     const charges = loan.charges || [];
     const extra = opts && opts.extraPayment ? [opts.extraPayment] : [];
-    const pays = data.payments.filter((x) => x.loanId === loan.id && activePay(x)).concat(extra)
+    const pays = paysOf(loan.id).filter(activePay).concat(extra)
       .sort((a, b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));
     const cuotas = p.cuotas.map((c) => {
       const ch = charges.filter((x) => x.cuota === c.n).reduce((s, x) => s + x.amount, 0);
@@ -642,9 +768,15 @@
 
   /* Cobros de un día: por cliente, cuánto debía pagar ese día (cuotas de ese día
      + vencidas que arrastra), cuánto se recibió ese día y cuánto falta. */
+  /* Cuánto de cada cuota estaba pagado ANTES de una fecha: los pagos llenan las cuotas en orden. */
+  function paidBeforeByCuota(st, date) {
+    let left = paysOf(st.loan.id).filter((x) => activePay(x) && x.date < date).reduce((a, x) => a + x.amount, 0);
+    return st.cuotas.map((c) => { const take = Math.min(c.due, Math.max(0, left)); left -= take; return take; });
+  }
   function collectionsFor(date) {
     const s = state(); const rows = new Map();
     for (const st of s.loans) {
+      let before = null;
       for (const c of st.cuotas) {
         const dueThatDay = c.date === date;
         const carried = c.date < date && (c.status !== "pagada" || (c.paidDate && c.paidDate >= date));
@@ -652,7 +784,9 @@
         if (st.status === "finalizado" && !(c.paidDate && c.paidDate >= date)) continue;
         const id = st.loan.clientId;
         const r = rows.get(id) || { clientId: id, expected: 0, received: 0, overdue: 0, loans: new Set(), cuotas: [] };
-        if (dueThatDay) r.expected += c.due; else r.overdue += c.due - (c.paidDate && c.paidDate < date ? c.due : 0);
+        if (!before) before = paidBeforeByCuota(st, date);
+        const owedC = Math.max(0, c.due - before[c.n - 1]);   // lo que faltaba de esa cuota al empezar el día
+        if (dueThatDay) r.expected += owedC; else r.overdue += owedC;
         r.loans.add(st.loan.id); r.cuotas.push({ st, c });
         rows.set(id, r);
       }
@@ -1143,11 +1277,13 @@
   function startSession(s) { session = s; cache = null; audit("ingreso", "sesion", s.id, s.username); save(); return s; }
   function endSession() { if (session) { audit("salida", "sesion", session.id, session.username); save(); } session = null; }
 
-  function restoreSnapshot(i) {
+  async function restoreSnapshot(i) {
     need("datos.respaldo");
     const s = snapshots()[i]; if (!s) return false;
-    snapshot("antes de restaurar copia automática");
-    data = normalize(s.data); cache = null; audit("restaurar", "datos", null, "copia automática del " + s.at.slice(0, 10)); save(); return true;
+    const d = await snapshotData(s);
+    if (!d || !d.clients) throw new Error("No se pudo leer esa copia.");
+    await snapshot("antes de restaurar copia automática");
+    data = normalize(JSON.parse(JSON.stringify(d))); cache = null; audit("restaurar", "datos", null, "copia automática del " + s.at.slice(0, 10)); save(); return true;
   }
 
   /* ----- Huella / biometría (complemento NativeBiometric) ----- */
@@ -1176,7 +1312,8 @@
   };
 
   window.GP = {
-    get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot, versionInfo, mirrorNow, snapshot,
+    get data() { return data; }, save, uid, Config, ready, snapshots, restoreSnapshot, versionInfo, mirrorNow, snapshot, persistNow,
+    get storage() { return { mode: fileMode() ? "archivo" : FS() ? "archivo + rápido" : "navegador", pending: pendingFile, lastPersist: GP_state.lastPersist, error: GP_state.persistError, size: JSON.stringify(data).length }; },
     today, toISO, parseISO, addDays, addMonths, diffDays, fmtDate, fmtDateShort, fmtDateLong, relDay,
     MESES, MESES_LARGO, DIAS,
     money, moneyShort, parseMoney,
